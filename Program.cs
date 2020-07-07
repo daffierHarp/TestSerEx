@@ -22,7 +22,7 @@ namespace testXml
         // ReSharper disable once UnusedParameter.Local
         static void Main(string[] args)
         {
-            var i1 = new Data {
+            var data1 = new Data {
                 SomeText = "xyz\r\nnext line", 
                 SomeInt = 4, 
                 SomeTextNode = "node value & with special characters \r\n>>\t great!\"yay!\"", 
@@ -36,24 +36,24 @@ namespace testXml
             // this will throw an exception when encoding as xml
             //i1.Children[0].Parent = i1;
             WriteLine("full xml:");
-            WriteLine($"i1=\r\n{i1.ToXml()}\r\n");
+            WriteLine($"i1=\r\n{data1.ToXml()}\r\n");
             WriteLine("minimal xml, with schema namespace:");
-            WriteLine($"i1={i1.ToXml(true,false)}");
-            var clone1 = SerEx.FromXml<Data>(i1.ToXml(true, false));
+            WriteLine($"i1={data1.ToXml(true,false)}");
+            var clone1 = SerEx.FromXml<Data>(data1.ToXml(true, false));
             WriteLine($"clone1={clone1.ToXml(true, false)}");
-            WriteLine($"i1.SomeTextNode==clone1.SomeTextNode?{i1.SomeTextNode==clone1.SomeTextNode}");
+            WriteLine($"i1.SomeTextNode==clone1.SomeTextNode?{data1.SomeTextNode==clone1.SomeTextNode}");
 
-            WriteLine($"\r\nwithout namespace:\r\ni1={i1.ToXml(true)}");
-            var clone2 = SerEx.FromXml<Data>(i1.ToXml(true));
+            WriteLine($"\r\nwithout namespace:\r\ni1={data1.ToXml(true)}");
+            var clone2 = SerEx.FromXml<Data>(data1.ToXml(true));
             WriteLine($"clone2={clone2.ToXml(true)}");
-            WriteLine($"i1.SomeTextNode==clone2.SomeTextNode?{i1.SomeTextNode==clone2.SomeTextNode}");
+            WriteLine($"i1.SomeTextNode==clone2.SomeTextNode?{data1.SomeTextNode==clone2.SomeTextNode}");
 
             WriteLine("\r\nQN: (FAAC/MILO quick-server complex data notation)");
-            i1.Children[0].Parent = i1; // test circular test on QN
-            WriteLine($"i1={i1.ToQn()}");
-            var clone3 = SerEx.FromQn<Data>(i1.ToQn());
+            data1.Children[0].Parent = data1; // test circular test on QN
+            WriteLine($"i1={data1.ToQn()}");
+            var clone3 = SerEx.FromQn<Data>(data1.ToQn());
             WriteLine($"clone3={clone3.ToQn()}");
-            WriteLine($"i1.SomeTextNode==clone3.SomeTextNode?{i1.SomeTextNode==clone3.SomeTextNode}");
+            WriteLine($"i1.SomeTextNode==clone3.SomeTextNode?{data1.SomeTextNode==clone3.SomeTextNode}");
         }
     }
 }
