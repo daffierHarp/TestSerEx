@@ -356,9 +356,13 @@ namespace testXml
                     helper.SkipWhiteSpaces();
                     if (helper.Current == '\"') {
                         // inStr
-                        Debug.Assert(elT == typeof(string));
                         var str = decodeQuotedString(helper);
-                        list.Add(str);
+                        if (elT == typeof(byte[]))
+                            list.Add(Convert.FromBase64String(str));
+                        else {
+                            Debug.Assert(elT == typeof(string));
+                            list.Add(str);
+                        }
                     } else {
                         string elPart;
                         if (helper.Current == '(' || helper.Current == '[')
