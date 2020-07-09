@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Xml.Serialization;
+using Helpers;
 using static System.Console;
 
-namespace testXml
+namespace TestSerEx
 {
     public class Data
     {
@@ -14,6 +16,7 @@ namespace testXml
         public Byte[] Bytes;
         public List<Data> Children;
         public Data Parent;
+        public DateTime Date = DateTime.Now;
     }
 
     class Program
@@ -33,27 +36,51 @@ namespace testXml
                     new Data { SomeText = "I'm a child"},
                 }
             };
+            //data1.Date = DateTime.ParseExact("","g",CultureInfo.InvariantCulture);
+
             // this will throw an exception when encoding as xml
-            //i1.Children[0].Parent = i1;
+            //data1.Children[0].Parent = i1;
             WriteLine("full xml:");
-            WriteLine($"i1=\r\n{data1.ToXml()}\r\n");
+            WriteLine($"data1=\r\n{data1.ToXml()}\r\n");
             WriteLine("minimal xml, with schema namespace:");
-            WriteLine($"i1={data1.ToXml(true,false)}");
+            WriteLine($"data1={data1.ToXml(true,false)}");
             var clone1 = SerEx.FromXml<Data>(data1.ToXml(true, false));
             WriteLine($"clone1={clone1.ToXml(true, false)}");
-            WriteLine($"i1.SomeTextNode==clone1.SomeTextNode?{data1.SomeTextNode==clone1.SomeTextNode}");
+            WriteLine($"data1.SomeTextNode==clone1.SomeTextNode?{data1.SomeTextNode==clone1.SomeTextNode}");
 
-            WriteLine($"\r\nwithout namespace:\r\ni1={data1.ToXml(true)}");
+            WriteLine($"\r\nwithout namespace:\r\ndata1={data1.ToXml(true)}");
             var clone2 = SerEx.FromXml<Data>(data1.ToXml(true));
             WriteLine($"clone2={clone2.ToXml(true)}");
-            WriteLine($"i1.SomeTextNode==clone2.SomeTextNode?{data1.SomeTextNode==clone2.SomeTextNode}");
+            WriteLine($"data1.SomeTextNode==clone2.SomeTextNode?{data1.SomeTextNode==clone2.SomeTextNode}");
 
             WriteLine("\r\nQN: (FAAC/MILO quick-server complex data notation)");
             data1.Children[0].Parent = data1; // test circular test on QN
-            WriteLine($"i1={data1.ToQn()}");
+
+            var data2 = new Data() {SomeTextNode = data1.SomeTextNode};
+            var qn2 = data2.ToQn();
+            var data2Clone = SerEx.FromQn<Data>(qn2);
+
+            WriteLine($"data1={data1.ToQn()}");
             var clone3 = SerEx.FromQn<Data>(data1.ToQn());
             WriteLine($"clone3={clone3.ToQn()}");
-            WriteLine($"i1.SomeTextNode==clone3.SomeTextNode?{data1.SomeTextNode==clone3.SomeTextNode}");
+            WriteLine($"data1.SomeTextNode==clone3.SomeTextNode?{data1.SomeTextNode==clone3.SomeTextNode}");
+
+            // QN as JSON
+            WriteLine("encode as QN with JSON config");
+            var json = data1.ToQn(QnConfig.Json);
+            WriteLine($"json={json}");
+            var jsonClone = SerEx.FromQn<Data>(json, QnConfig.Json);
+            WriteLine($"data1.SomeTextNode==jsonClone.SomeTextNode?{data1.SomeTextNode==jsonClone.SomeTextNode}");
+
+            // QN as C# Object Init
+            WriteLine("\r\nencode as QN with \'C# Object Init\' config");
+            var csoi = data1.ToQn(QnConfig.CSharpObjectInit);
+            WriteLine($"csoi={csoi}");
+            // cannot actually decode csoi
+
+            // TODO: test decode of sample JSON from other sources
+            const string sampleJson1 = @"
+";
         }
     }
 }
