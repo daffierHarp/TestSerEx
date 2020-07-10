@@ -21,6 +21,9 @@ using System.Xml.Serialization;
 // ReSharper disable once CheckNamespace
 namespace Helpers
 {
+    // TODO: create method to build C# definition of model from json
+    // TODO: fix json enum values to be within quotes
+
     public static class SerEx
     {
         // the problem with this version is that it includes XML line, and specifies the encoding as Unicode, though it might
@@ -101,6 +104,11 @@ namespace Helpers
         public static T FromQn<T>(string qn, QnConfig qnCfg, bool tryQuotes = false) =>
             (T) decodeQnInner(qn, typeof(T), qnCfg, tryQuotes);
 
+        public static string ToJson<T>(this T o) => o.ToQn(QnConfig.Json);
+        public static T FromJson<T>(string json) => FromQn<T>(json, QnConfig.Json);
+        public static QnObject ParseQn(string qn) => FromQn<QnObject>(qn, QnConfig.Default); // QnObject isn't supported by the legacy parser that doesn't use QnConfig
+        public static QnObject ParseJSon(string json) => FromQn<QnObject>(json, QnConfig.Json);
+
         #region QN
 
         // ReSharper disable once InconsistentNaming
@@ -169,10 +177,12 @@ namespace Helpers
                             sb.Append(',');
                         else
                             firstDicV = false;
+                        if(!string.IsNullOrWhiteSpace(qnCfg.DictionaryItemOpen)) sb.Append(qnCfg.DictionaryItemOpen);
                         sb.Append(encodeComplexDataInner(key, inDepth + 1, cyclesTraceList, qnCfg));
                         sb.Append(qnCfg.DictionarySep);
                         var v = d[key];
                         sb.Append(encodeComplexDataInner(v, inDepth + 1, cyclesTraceList, qnCfg));
+                        if (!string.IsNullOrWhiteSpace(qnCfg.DictionaryItemClose)) sb.Append(qnCfg.DictionaryItemClose);
                     }
 
                     sb.Append(qnCfg.CloseDictionary);
@@ -311,6 +321,8 @@ namespace Helpers
             }
 
             string s = helper.AllText.Substring(i0, helper.CurrentIndex - i0);
+            if (helper.Current==qnCfg.Quote)
+                helper.SkipOne();
             return s.Unescape();
         }
 
@@ -565,7 +577,7 @@ namespace Helpers
                 }
             }
 
-            if (t == null || t == typeof(object)) return new QnObject {Config = qnCfg, RawText = encoded};
+            if (t == null || t == typeof(object) || t == typeof(QnObject)) return new QnObject {Config = qnCfg, RawText = encoded};
             if (t.IsInterface) {
                 doLog("Decoding data as interface not supported!", 10);
                 return null;
@@ -617,25 +629,36 @@ namespace Helpers
             }
 
             if (typeof(IDictionary).IsAssignableFrom(t)) {
-                if (!encoded.StartsWith(qnCfg.OpenDictionary))
-                    throw new Exception("cannot parse data as dictionary");
-                helper.SkipOne();
+                var closeDic = qnCfg.CloseDictionary;
+                var openDic = qnCfg.OpenDictionary;
+                if (!helper.PeekPhrase(openDic)) {
+                    if (helper.PeekPhrase(qnCfg.OpenRecord+""))
+                    {
+                        openDic = qnCfg.OpenRecord + "";
+                        closeDic = qnCfg.CloseRecord;
+                    }
+                    else
+                        throw new Exception("cannot parse data as dictionary");
+                }
+                    
+                helper.SkipPhrase(openDic);
                 // array or dictionary
                 var dic = (IDictionary) Activator.CreateInstance(t);
                 Debug.Assert(dic != null);
                 var keyType = t.GetGenericArguments()[0];
                 var valueType = t.GetGenericArguments()[1];
 
-                while (helper.Current != qnCfg.CloseDictionary) {
+                while (helper.Current != closeDic) {
                     helper.SkipWhiteSpaces();
                     string keyPart;
+                    // TODO: support new() and dictionary type formats
                     if (qnCfg.AddNewKeywordToClassName && helper.PeekPhrase("new ")) helper.SkipPhrase("new ");
                     if (qnCfg.AddClassName && char.IsLetter(helper.Current)) helper.SkipToAny($" {qnCfg.OpenRecord}{qnCfg.OpenArray}{qnCfg.OpenDictionary}");
                     if (helper.Current == qnCfg.OpenRecord || helper.PeekPhrase(qnCfg.OpenDictionary) || helper.PeekPhrase(qnCfg.OpenArray))
                         keyPart = readQnBlock(helper, qnCfg, true);
                     else
                         keyPart = helper.ReadToAny($"{qnCfg.DictionarySep}").Trim(' ', '\t', '\r', '\n');
-
+                    // TODO: support dictionary item open/close characters
                     var key = decodeQnInner(keyPart, keyType, qnCfg, true);
                     helper.SkipOne(); // :
                     helper.SkipWhiteSpaces();
@@ -645,7 +668,7 @@ namespace Helpers
                     if (helper.Current == qnCfg.OpenRecord || helper.PeekPhrase(qnCfg.OpenDictionary) || helper.PeekPhrase(qnCfg.OpenArray))
                         vPart = readQnBlock(helper, qnCfg);
                     else
-                        vPart = helper.ReadToAny($"{qnCfg.CloseDictionary},");
+                        vPart = helper.ReadToAny($"{closeDic},");
                     vPart = vPart.Trim(' ', '\t', '\r', '\n');
                     var v = decodeQnInner(vPart, valueType, qnCfg, true);
                     dic.Add(key, v);
@@ -691,7 +714,7 @@ namespace Helpers
 
                     if (ft == typeof(byte[]) && fieldValue is string str) fieldValue = decodeQnInner(str, ft, qnCfg);
                     if (ft == typeof(DateTime))
-                        fieldValue = DateTime.TryParseExact((string) fieldValue, "g", CultureInfo.InvariantCulture,
+                        fieldValue = DateTime.TryParseExact((string) fieldValue, qnCfg.DateFormat, CultureInfo.InvariantCulture,
                             DateTimeStyles.None, out var dateResult)
                             ? dateResult
                             : default(DateTime);
@@ -985,7 +1008,7 @@ namespace Helpers
         public static bool operator ==(Slice obj1, Slice obj2) =>
             ReferenceEquals(obj1, null) && ReferenceEquals(obj2, null) ||
             !ReferenceEquals(obj1, null) && !ReferenceEquals(obj2, null) &&
-            (string) obj1 == (string) obj2;
+            obj1.Length == obj2.Length && (string) obj1 == (string) obj2;
 
         public static bool operator !=(Slice obj1, Slice obj2) => !(obj1 == obj2);
         public override int GetHashCode() => ((string) this).GetHashCode();
@@ -1101,6 +1124,7 @@ namespace Helpers
         public static readonly QnConfig Default = new QnConfig();
 
         public static readonly QnConfig Json = new QnConfig {
+            Name = "Json",
             OpenRecord = '{',
             CloseRecord = '}',
             OpenDictionary = "{",
@@ -1118,9 +1142,12 @@ namespace Helpers
         };
         // CSharpObjectInit not supported for parsing because can not at this point parse configurations with open sections parts larger than 1 character
         public static readonly QnConfig CSharpObjectInit = new QnConfig {
+            Name = "C# object init",
             OpenRecord = '{',
             CloseRecord = '}',
-            OpenDictionary = "new Dictionary<{0},{1}>{",
+            OpenDictionary = "new Dictionary<{0},{1}>{{",
+            DictionaryItemClose = "}",
+            DictionaryItemOpen = "{",
             CloseDictionary = '}',
             OpenArray = "new[]{",
             CloseArray = ']',
@@ -1140,6 +1167,8 @@ namespace Helpers
             // the DateTime is also preventing parsing through the QN mechanism
             DateStringFormat = "DateTime.ParseExact(\"{0}\",\"g\",CultureInfo.InvariantCulture)"
         };
+        public string Name = "QN";
+        public override string ToString() => Name;
         // defaults and decelerations
         public bool BooleanAsLowecase;
         public string DateStringFormat;
@@ -1165,6 +1194,8 @@ namespace Helpers
         public bool UseDateFormatter;
         public bool AddClassName;
         public bool AddNewKeywordToClassName;
+        public string DictionaryItemOpen = "";
+        public string DictionaryItemClose = "";
     }
     #endregion
     /// <summary>
@@ -1174,9 +1205,12 @@ namespace Helpers
     {
         public QnConfig Config;
         public Slice RawText;
+        QnObject[] _arr;
+        Dictionary<string, QnObject> _dic;
+        public override string ToString() => RawText.ToString();
         public T Parse<T>() => SerEx.FromQn<T>(RawText, Config);
         public bool IsArray => RawText.GetNextNonWhiteChar(out _) == Config.OpenArray[0];
-        public QnObject[] ToArray() => Parse<QnObject[]>();
+        public QnObject[] ParseArray() => _arr ?? (_arr= IsArray ? Parse<QnObject[]>():new QnObject[0]);
         public bool IsClass
         {
             get
@@ -1193,8 +1227,20 @@ namespace Helpers
             }
         }
         public bool IsString => RawText.GetNextNonWhiteChar(out _) == Config.Quote;
-        public Dictionary<string, QnObject> ToClassAsDictionary => Parse<Dictionary<string, QnObject>>();
+        public Dictionary<string, QnObject> ParseClass() => _dic ?? (_dic = IsClass?Parse<Dictionary<string, QnObject>>():new Dictionary<string, QnObject>());
         public bool IsNumber => char.IsDigit(RawText.GetNextNonWhiteChar(out _));
+        public QnObject this[string key] =>ParseClass()[key];
+
+        public QnObject this[int index]
+        {
+            get {
+                if (index<0) return new QnObject { Config = Config, RawText=""};
+                var a = ParseArray();
+                if (index>=a.Length) return new QnObject { Config = Config, RawText = "" };
+                return a[index];
+            }
+        }
+
         /*
         public bool IsDictionary
         {

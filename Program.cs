@@ -18,6 +18,11 @@ namespace TestSerEx
         public Data Parent;
         public DateTime Date = DateTime.Now;
     }
+    public class DataWithD
+    {
+        public Dictionary<string, int> D; // not supported by XML
+
+    }
 
     class Program
     {
@@ -34,7 +39,7 @@ namespace TestSerEx
                 Children = new List<Data> {
                     new Data { SomeText = "I'm a child"},
                     new Data { SomeText = "I'm a child"},
-                }
+                },
             };
             //data1.Date = DateTime.ParseExact("","g",CultureInfo.InvariantCulture);
 
@@ -59,8 +64,8 @@ namespace TestSerEx
             var data2 = new Data() {SomeTextNode = data1.SomeTextNode};
             var qn2 = data2.ToQn();
             var data2Clone = SerEx.FromQn<Data>(qn2);
-
-            WriteLine($"data1={data1.ToQn()}");
+            var qn1 = data1.ToQn();
+            WriteLine($"data1={qn1}");
             var clone3 = SerEx.FromQn<Data>(data1.ToQn());
             WriteLine($"clone3={clone3.ToQn()}");
             WriteLine($"data1.SomeTextNode==clone3.SomeTextNode?{data1.SomeTextNode==clone3.SomeTextNode}");
@@ -77,6 +82,26 @@ namespace TestSerEx
             var csoi = data1.ToQn(QnConfig.CSharpObjectInit);
             WriteLine($"csoi={csoi}");
             // cannot actually decode csoi
+
+            // encode/decode dictionaries
+            WriteLine("\r\nTesting dictionary encoding/decoding");
+            var dd = new DataWithD { D = new Dictionary<string, int> { { "v", 2 }, { "item", 5} } };
+            var ddQn = dd.ToQn(); WriteLine($"ddQn={ddQn}");
+            var ddQnClone = SerEx.FromQn<DataWithD>(ddQn); 
+            var ddJson = dd.ToQn(QnConfig.Json); WriteLine($"ddJson={ddJson}");
+            var ddCs = dd.ToQn(QnConfig.CSharpObjectInit); WriteLine($"ddCs={ddCs}");
+            var ddJsonClone = SerEx.FromQn<DataWithD>(ddJson, QnConfig.Json);
+
+            //var ddCsClone = SerEx.FromQn<DataWithD>(ddCs); // not implemented
+
+
+            // TODO: test QnObject decoding
+            var jo = SerEx.ParseJSon(json);
+            var joDic = jo.ParseClass();
+            var joDicChildren = joDic["Children"].ParseArray();
+            var joChild = jo["Children"][0].Parse<Data>();
+            var qo = SerEx.ParseQn(qn1);
+            var qoDic = qo.ParseClass();
 
             // TODO: test decode of sample JSON from other sources
             const string sampleJson1 = @"
