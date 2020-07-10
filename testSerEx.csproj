@@ -7,9 +7,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="QnUnitMsTest\**" />
+    <Compile Remove="QN\**" />
     <Compile Remove="_ReSharper.Caches\**" />
+    <EmbeddedResource Remove="QnUnitMsTest\**" />
+    <EmbeddedResource Remove="QN\**" />
     <EmbeddedResource Remove="_ReSharper.Caches\**" />
+    <None Remove="QnUnitMsTest\**" />
+    <None Remove="QN\**" />
     <None Remove="_ReSharper.Caches\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="QN\QN.csproj" />
   </ItemGroup>
 
 </Project>

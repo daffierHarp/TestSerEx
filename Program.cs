@@ -1,12 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.IO;
 using System.Xml.Serialization;
-using Helpers;
+using QN;
 using static System.Console;
+// ReSharper disable UnusedMember.Global
 
 namespace TestSerEx
 {
+    public enum MyEn
+    {
+        None=0, Val1, Val2
+    }
     public class Data
     {
         [XmlAttribute]public string SomeText { get; set; }
@@ -17,15 +22,28 @@ namespace TestSerEx
         public List<Data> Children;
         public Data Parent;
         public DateTime Date = DateTime.Now;
+        public MyEn En = MyEn.Val1;
     }
     public class DataWithD
     {
         public Dictionary<string, int> D; // not supported by XML
 
     }
-
+    
     class Program
     {
+        static bool eq(DateTime d1, DateTime d2, bool withMilis = false, bool withSeconds = false)
+        {
+            if (!(d1.Year == d2.Year &&
+                d1.Month == d2.Month &&
+                d1.Day == d2.Day &&
+                d1.Hour == d2.Hour &&
+                d1.Minute == d2.Minute)) return false;
+            if (!withSeconds) return true;
+            if (d1.Second != d2.Second) return false;
+            if (!withMilis) return true;
+            return d1.Millisecond == d2.Millisecond;
+        }
         // ReSharper disable once InconsistentNaming
         // ReSharper disable once UnusedParameter.Local
         static void Main(string[] args)
@@ -68,14 +86,14 @@ namespace TestSerEx
             WriteLine($"data1={qn1}");
             var clone3 = SerEx.FromQn<Data>(data1.ToQn());
             WriteLine($"clone3={clone3.ToQn()}");
-            WriteLine($"data1.SomeTextNode==clone3.SomeTextNode?{data1.SomeTextNode==clone3.SomeTextNode}");
+            WriteLine($"data1.SomeTextNode==clone3.SomeTextNode?{data1.SomeTextNode==clone3.SomeTextNode},data1.Date==clone3.Date?{eq(data1.Date,clone3.Date)}");
 
             // QN as JSON
-            WriteLine("encode as QN with JSON config");
+            WriteLine("\r\nencode as QN with JSON config");
             var json = data1.ToQn(QnConfig.Json);
             WriteLine($"json={json}");
             var jsonClone = SerEx.FromQn<Data>(json, QnConfig.Json);
-            WriteLine($"data1.SomeTextNode==jsonClone.SomeTextNode?{data1.SomeTextNode==jsonClone.SomeTextNode}");
+            WriteLine($"data1.SomeTextNode==jsonClone.SomeTextNode?{data1.SomeTextNode==jsonClone.SomeTextNode},data1.Date==jsonClone.Date?{eq(data1.Date,jsonClone.Date,withSeconds:true)}");
 
             // QN as C# Object Init
             WriteLine("\r\nencode as QN with \'C# Object Init\' config");
@@ -93,9 +111,14 @@ namespace TestSerEx
             var ddJsonClone = SerEx.FromQn<DataWithD>(ddJson, QnConfig.Json);
 
             //var ddCsClone = SerEx.FromQn<DataWithD>(ddCs); // not implemented
+            var multiRecords = ddJson + "\r\n" + json + "\r\n";
+            var r = new StringReader(multiRecords);
+            var block1 = SerEx.ReadBlock(r, QnConfig.Json);
+            var block2 = SerEx.ReadBlock(r, QnConfig.Json);
+            var empty = SerEx.ReadBlock(r, QnConfig.Json);
+            
 
-
-            // TODO: test QnObject decoding
+            // test QnObject decoding
             var jo = SerEx.ParseJSon(json);
             var joDic = jo.ParseClass();
             var joDicChildren = joDic["Children"].ParseArray();

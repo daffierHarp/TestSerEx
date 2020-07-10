@@ -3,7 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30225.117
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "testSerEx", "testSerEx.csproj", "{222A296A-0F35-488F-85D9-75C87C4FF21E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "testSerEx", "testSerEx.csproj", "{222A296A-0F35-488F-85D9-75C87C4FF21E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QN", "QN\QN.csproj", "{6D38258E-1B91-4DF1-BB91-B2197BC97E46}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QnUnitMsTest", "QnUnitMsTest\QnUnitMsTest.csproj", "{AC3E3F66-FCD6-4533-B188-C59EC0AC337D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +19,14 @@ Global
 		{222A296A-0F35-488F-85D9-75C87C4FF21E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{222A296A-0F35-488F-85D9-75C87C4FF21E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{222A296A-0F35-488F-85D9-75C87C4FF21E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D38258E-1B91-4DF1-BB91-B2197BC97E46}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D38258E-1B91-4DF1-BB91-B2197BC97E46}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D38258E-1B91-4DF1-BB91-B2197BC97E46}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D38258E-1B91-4DF1-BB91-B2197BC97E46}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AC3E3F66-FCD6-4533-B188-C59EC0AC337D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC3E3F66-FCD6-4533-B188-C59EC0AC337D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC3E3F66-FCD6-4533-B188-C59EC0AC337D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC3E3F66-FCD6-4533-B188-C59EC0AC337D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

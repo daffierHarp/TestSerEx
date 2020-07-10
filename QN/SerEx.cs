@@ -1,7 +1,4 @@
-﻿//  SerEx.cs Latest resharper cleanup: 07/09/2020
-//  Copyright © FAAC. All rights reserved.
-
-#region using
+﻿#region using
 
 using System;
 using System.Collections;
@@ -9,20 +6,22 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
+// ReSharper disable RedundantTypeSpecificationInDefaultExpression
+// ReSharper disable ConvertIfStatementToNullCoalescingAssignment
 
 // ReSharper disable UnusedMember.Global
 
 #endregion
 
 // ReSharper disable once CheckNamespace
-namespace Helpers
+namespace QN
 {
     // TODO: create method to build C# definition of model from json
-    // TODO: fix json enum values to be within quotes
 
     public static class SerEx
     {
@@ -99,17 +98,85 @@ namespace Helpers
         public static string ToQn<T>(this T item, QnConfig qnCfg = null) =>
             encodeComplexDataInner(item, 0, new HashSet<object>(), qnCfg);
 
-        public static T FromQn<T>(string qn, bool tryQuotes = false) => (T) decodeComplexData(qn, typeof(T), tryQuotes);
 
-        public static T FromQn<T>(string qn, QnConfig qnCfg, bool tryQuotes = false) =>
-            (T) decodeQnInner(qn, typeof(T), qnCfg, tryQuotes);
+        public static T FromQn<T>(string qn, bool tryQuotes = false) => (T) decodeQnInner(qn, typeof(T), QnConfig.Default, tryQuotes);//(T) decodeComplexData(qn, typeof(T), tryQuotes);
+
+        public static T FromQn<T>(string qn, QnConfig qnCfg, bool tryQuotes = false) => (T) decodeQnInner(qn, typeof(T), qnCfg, tryQuotes);
 
         public static string ToJson<T>(this T o) => o.ToQn(QnConfig.Json);
         public static T FromJson<T>(string json) => FromQn<T>(json, QnConfig.Json);
-        public static QnObject ParseQn(string qn) => FromQn<QnObject>(qn, QnConfig.Default); // QnObject isn't supported by the legacy parser that doesn't use QnConfig
+        public static QnObject ParseQn(string qn) => FromQn<QnObject>(qn, QnConfig.Default); 
         public static QnObject ParseJSon(string json) => FromQn<QnObject>(json, QnConfig.Json);
+        /// <summary>
+        /// Parse a block from stream, allowing separate QN or JSON objects to be read when they arrive on the same network stream
+        /// </summary>
+        public static string ReadBlock(TextReader r, QnConfig qnCfg = null)
+        {
+            if (qnCfg == null) qnCfg = QnConfig.Default;
+            var blockStack = new Stack<char>();
+            var inStr = false;
+            //blockStack.Push(',');
+            var openChars = $"{qnCfg.OpenArray}{qnCfg.OpenRecord}{qnCfg.OpenDictionary}";
+            var whites = " \t\r\n";
+            var helper = new StreamReaderHelper(r);
+            while (whites.IndexOf(helper.Current)>0 && !helper.HasEnded)
+                helper.SkipOne();
+            helper.ForgetSoFar(moveNext:false);
+            while (openChars.IndexOf(helper.Current) >= 0 && !helper.HasEnded) {
+                blockStack.Push(helper.Current);
+                helper.SkipOne();
+            }
 
-        #region QN
+            var stopAtChars =
+                $",;}}\\{qnCfg.OpenArray[0]}{qnCfg.CloseArray}{qnCfg.OpenRecord}{qnCfg.CloseRecord}{qnCfg.Quote}{qnCfg.DictionarySep}{qnCfg.FieldSep}{qnCfg.OpenDictionary[0]}{qnCfg.CloseDictionary}";
+            var stopAtStrChars = "\\\"'";
+            while (blockStack.Count > 0) {
+#if DEBUG
+                // ReSharper disable once UnusedVariable
+                if (helper.HasEnded) Debugger.Break();
+#endif
+                // ReSharper disable once UnusedVariable
+                var readPart = inStr? helper.ReadToAny(stopAtStrChars) : helper.ReadToAny(stopAtChars);
+                var lastChr = helper.Current;
+                if (inStr) {
+                    helper.SkipOne();
+                    if (!qnCfg.EncodeStringAsDoubleQuote) {
+
+                        if (lastChr == '\\') {
+                            helper.SkipOne();
+                            continue;
+                        }
+                    }
+
+                    if (lastChr == qnCfg.Quote)
+                        inStr = false;
+                    continue;
+                }
+
+                if (lastChr == qnCfg.Quote) {
+                    inStr = true;
+                } else if (openChars.IndexOf(lastChr) >= 0) {
+                    blockStack.Push(lastChr);
+                } else if (blockStack.Peek() == qnCfg.OpenArray[0]) {
+                    if (lastChr == qnCfg.CloseArray) blockStack.Pop();
+                } else if (blockStack.Peek() == qnCfg.OpenRecord) {
+                    if (lastChr == qnCfg.CloseRecord) blockStack.Pop();
+                } else if (blockStack.Peek() == qnCfg.OpenDictionary[0]) {
+                    if (lastChr == qnCfg.CloseDictionary) blockStack.Pop();
+                }else if (blockStack.Peek() == ',') {
+                    if (lastChr == ',' || lastChr == ';'
+                                       || lastChr == qnCfg.CloseRecord || lastChr == qnCfg.CloseArray || lastChr == qnCfg.CloseDictionary 
+                                       //|| (lastChr == qnCfg.FieldSep || lastChr == qnCfg.DictionarySep) && false
+                                       ) 
+                        blockStack.Pop();
+                }
+
+                if (blockStack.Count > 0) helper.SkipOne();
+            }
+
+            return helper.TextSoFar;
+        }
+        #region inner implementation
 
         // ReSharper disable once InconsistentNaming
         public static Action<string, int> doLog = (s, level) => { Debug.WriteLine($"{level}:\t{s}"); };
@@ -153,6 +220,8 @@ namespace Helpers
                         ? qnCfg.Quote + dataStr.Replace($"{qnCfg.Quote}", $"{qnCfg.Quote}{qnCfg.Quote}") + qnCfg.Quote
                         : dataStr.Escape(quoteChar: qnCfg.Quote);
                 if (data is DateTime dt) {
+                    if (qnCfg.DateInUtc)
+                        dt = dt.ToUniversalTime();
                     var dateText = qnCfg.UseDateFormatter
                         ? dt.ToString(qnCfg.DateFormat)
                         : dt.ToString("g", CultureInfo.InvariantCulture);
@@ -162,7 +231,16 @@ namespace Helpers
                 }
 
                 if (t == typeof(bool) && qnCfg.BooleanAsLowecase) return (bool) data ? "true" : "false";
-                if (t.IsPrimitive || t.IsEnum) return Convert.ToString(data, CultureInfo.InvariantCulture);
+                if (t.IsEnum) {
+                    switch (qnCfg.EnumEncoding) {
+                        case EnumEncodingOption.NameOnly: return Convert.ToString(data, CultureInfo.InvariantCulture);
+                        case EnumEncodingOption.QuotedName: return $"{qnCfg.Quote}{Enum.GetName(t,data)}{qnCfg.Quote}";
+                        case EnumEncodingOption.Number: return Convert.ToString((int)data, CultureInfo.InvariantCulture);
+                        case EnumEncodingOption.TypeDotName: return $"{t.Name}.{Enum.GetName(t,data)}";
+                    }
+                    return Convert.ToString(data, CultureInfo.InvariantCulture);
+                }
+                if (t.IsPrimitive) return Convert.ToString(data, CultureInfo.InvariantCulture);
                 if (t == typeof(byte[])) return qnCfg.Quote + Convert.ToBase64String((byte[]) data) + qnCfg.Quote;
                 var sb = new StringBuilder();
                 if (data is IDictionary d && (t.HasElementType || t.GenericTypeArguments.Length == 2)) {
@@ -326,6 +404,7 @@ namespace Helpers
             return s.Unescape();
         }
 
+        // legacy, qn only with no configuration, no QnObject
         static object decodeComplexData(string encoded, Type t, bool tryQuotes = false)
         {
             if (encoded == "" || encoded == "(null)") return null; // internal null object
@@ -506,7 +585,7 @@ namespace Helpers
 
             if (t == typeof(string[])) // legacy
                 return encoded.Split('|');
-            throw new NotImplementedException();
+            throw new Exception("Unsupported encoding or type");
         }
 
         static string readComplexBlock(ParseHelper helper, bool stopAtNextColon = false)
@@ -561,7 +640,7 @@ namespace Helpers
             var complexDataString = sb.ToString();
             return complexDataString;
         }
-
+        // decode with configuration, supports json
         static object decodeQnInner(Slice encoded, Type t, QnConfig qnCfg, bool tryQuotes = false)
         {
             if (encoded == qnCfg.NullStr || encoded == "(null)") return null; // internal null object
@@ -614,14 +693,22 @@ namespace Helpers
                 return Convert.FromBase64String(txt);
             }
 
-            if (t.IsEnum) return Enum.Parse(t, encoded);
+            if (t.IsEnum) {
+                switch (qnCfg.EnumEncoding) {
+                    case EnumEncodingOption.NameOnly: return Enum.Parse(t, encoded);
+                    case EnumEncodingOption.Number: return Enum.ToObject(t, int.Parse(encoded));
+                    case EnumEncodingOption.QuotedName: return Enum.Parse(t, encoded.Trim(qnCfg.Quote));
+                    case EnumEncodingOption.TypeDotName: return Enum.Parse(t, encoded.Substring(encoded.IndexOf('.')+1));
+                }
+                
+            }
             if (t == typeof(DateTime?)) {
                 if (string.IsNullOrWhiteSpace(encoded) || encoded == "\"\"") return null;
                 t = typeof(DateTime);
             }
 
             if (t == typeof(DateTime)) {
-                if (DateTime.TryParseExact(encoded.Trim('\"'), "g", CultureInfo.InvariantCulture, DateTimeStyles.None,
+                if (DateTime.TryParseExact(encoded.Trim('\"'), qnCfg.DateFormat ?? "g", CultureInfo.InvariantCulture, DateTimeStyles.None,
                     out var dateResult))
                     return dateResult;
                 doLog($"failed to parse date-time {encoded}", 10);
@@ -707,17 +794,12 @@ namespace Helpers
                         fieldValue = decodeQnInner(complex, ft, qnCfg);
                     } else if (helper.Current == qnCfg.Quote) {
                         fieldValue = decodeQnString(helper, qnCfg);
+                        if (ft != typeof(string))
+                            fieldValue = decodeQnInner((string)fieldValue, ft, qnCfg);
                     } else {
                         var dataStr = helper.ReadToAny($",{qnCfg.CloseRecord}");
                         fieldValue = decodeQnInner(dataStr, ft, qnCfg);
                     }
-
-                    if (ft == typeof(byte[]) && fieldValue is string str) fieldValue = decodeQnInner(str, ft, qnCfg);
-                    if (ft == typeof(DateTime))
-                        fieldValue = DateTime.TryParseExact((string) fieldValue, qnCfg.DateFormat, CultureInfo.InvariantCulture,
-                            DateTimeStyles.None, out var dateResult)
-                            ? dateResult
-                            : default(DateTime);
                     if (fi != null) fi.SetValue(resultRecord, fieldValue);
                     else if (pi != null)
                         try {
@@ -778,7 +860,7 @@ namespace Helpers
 
             if (qnCfg.SupportLegacyStringArrayWithPipe && t == typeof(string[])) // legacy
                 return encoded.ToString().Split('|');
-            throw new NotImplementedException();
+            throw new Exception("Unsupported encoding or type");
         }
 
         static Slice readQnBlock(ParseHelper helper, QnConfig qnCfg, bool stopAtNextColon = false)
@@ -795,12 +877,14 @@ namespace Helpers
 
             var stopAtChars =
                 $",;}}\\{qnCfg.OpenArray[0]}{qnCfg.CloseArray}{qnCfg.OpenRecord}{qnCfg.CloseRecord}{qnCfg.Quote}{qnCfg.DictionarySep}{qnCfg.FieldSep}{qnCfg.OpenDictionary[0]}{qnCfg.CloseDictionary}";
-            var stopAtStrChars = $"\\\"\'";
+            var stopAtStrChars = "\\\"'";
             while (blockStack.Count > 0) {
 #if DEBUG
+                // ReSharper disable once UnusedVariable
                 var soFar = helper.AllText.Substring(startIndex, helper.CurrentIndex - startIndex).ToString();
                 if (helper.HasEnded) Debugger.Break();
 #endif
+                // ReSharper disable once UnusedVariable
                 var readPart = inStr? helper.ReadToAny(stopAtStrChars) : helper.ReadToAny(stopAtChars);
                 var lastChr = helper.Current;
                 if (inStr) {
@@ -945,6 +1029,9 @@ namespace Helpers
         #endregion
     }
 
+    /// <summary>
+    /// Handle a substring while not performing actual "Substring" method until forced
+    /// </summary>
     public class Slice
     {
         public static readonly Slice Empty = new Slice {OriginalString = "", StartIndex = 0, LengthOfSubstring = 0};
@@ -1119,6 +1206,14 @@ namespace Helpers
         }
     }
     #region QnConfig
+
+    public enum EnumEncodingOption
+    {
+        NameOnly,
+        QuotedName,
+        TypeDotName,
+        Number
+    }
     public class QnConfig
     {
         public static readonly QnConfig Default = new QnConfig();
@@ -1133,12 +1228,14 @@ namespace Helpers
             SupportEitherQuoteChar = true,
             UseDateFormatter = true,
             DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ",
+            DateInUtc = true,
             ExceptionAsStringEncodedXml = false,
             ExceptionStringFormat = "{'ExceptionMessage':'{0}'}",
             NullStr = "null",
             EncodeStringAsDoubleQuote = false,
             BooleanAsLowecase = true,
-            SupportLegacyStringArrayWithPipe = false
+            SupportLegacyStringArrayWithPipe = false,
+            EnumEncoding = EnumEncodingOption.QuotedName
         };
         // CSharpObjectInit not supported for parsing because can not at this point parse configurations with open sections parts larger than 1 character
         public static readonly QnConfig CSharpObjectInit = new QnConfig {
@@ -1165,7 +1262,8 @@ namespace Helpers
             DateFormat = "g",
             UseDateFormatter = true,
             // the DateTime is also preventing parsing through the QN mechanism
-            DateStringFormat = "DateTime.ParseExact(\"{0}\",\"g\",CultureInfo.InvariantCulture)"
+            DateStringFormat = "DateTime.ParseExact(\"{0}\",\"g\",CultureInfo.InvariantCulture)",
+            EnumEncoding = EnumEncodingOption.TypeDotName
         };
         public string Name = "QN";
         public override string ToString() => Name;
@@ -1196,6 +1294,8 @@ namespace Helpers
         public bool AddNewKeywordToClassName;
         public string DictionaryItemOpen = "";
         public string DictionaryItemClose = "";
+        public EnumEncodingOption EnumEncoding = EnumEncodingOption.NameOnly;
+        public bool DateInUtc;
     }
     #endregion
     /// <summary>
@@ -1229,8 +1329,8 @@ namespace Helpers
         public bool IsString => RawText.GetNextNonWhiteChar(out _) == Config.Quote;
         public Dictionary<string, QnObject> ParseClass() => _dic ?? (_dic = IsClass?Parse<Dictionary<string, QnObject>>():new Dictionary<string, QnObject>());
         public bool IsNumber => char.IsDigit(RawText.GetNextNonWhiteChar(out _));
-        public QnObject this[string key] =>ParseClass()[key];
-
+        public QnObject this[string field] =>ParseClass()[field];
+        public string[] Fields => ParseClass().Keys.ToArray();
         public QnObject this[int index]
         {
             get {
@@ -1240,6 +1340,8 @@ namespace Helpers
                 return a[index];
             }
         }
+
+        public int ArrayLength => ParseArray().Length;
 
         /*
         public bool IsDictionary
@@ -1257,7 +1359,7 @@ namespace Helpers
         }*/
     }
 
-#region ParseHelper
+    #region ParseHelper
 
     class ParseHelper
     {
@@ -1395,5 +1497,81 @@ namespace Helpers
         public void SkipPhrase(string phrase) => CurrentIndex += phrase.Length;
     }
 
-#endregion
+    class StreamReaderHelper
+    {
+        readonly TextReader _r;
+        char? _curr;
+        StringBuilder _sb = new StringBuilder();
+
+        public StreamReaderHelper(TextReader r)
+        {
+            _r = r;
+        }
+
+        public bool HasEnded { get; private set; }
+        public char Current
+        {
+            get
+            {
+                if (_curr.HasValue) return _curr.Value;
+                if (HasEnded) return '\0';
+                if (_r is StreamReader sr && sr.EndOfStream) {
+                    HasEnded = true;
+                    return '\0';
+                }
+                if (_r is StringReader strR && strR.Peek() < 0) {
+                    HasEnded = true;
+                    return '\0';
+                }
+
+                var nextC = _r.Read();
+                if (nextC == -1) {
+                    HasEnded = true;
+                    return '\0';
+                }
+
+                _sb.Append((char)nextC);
+                _curr = (char)nextC;
+                return (char)nextC;
+            }
+        }
+
+        public void SkipOne()
+        {
+            _curr = null;
+        }
+
+        public string ReadToAny(string stopAtStrChars)
+        {
+            if (HasEnded) return "";
+            var sb = new StringBuilder(10);
+            while (true) {
+                var c = Current;
+                if (stopAtStrChars.IndexOf(c) >= 0) break;
+                if (HasEnded) break;
+                sb.Append(c);
+                SkipOne();
+            }
+
+            return sb.ToString();
+        }
+
+        public string TextSoFar => _sb.ToString();
+
+        public void ForgetSoFar(bool forgetCurrent = false, bool moveNext = true)
+        {
+            _sb = new StringBuilder();
+            if (forgetCurrent) {
+                if (moveNext)
+                    SkipOne();
+                return;
+            }
+
+            if (HasEnded) return;
+            _sb.Append(Current);
+            if (moveNext)
+                SkipOne();
+        }
+    }
+    #endregion
 }
