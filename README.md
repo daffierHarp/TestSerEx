@@ -1,4 +1,4 @@
-# XML and QN Serialization
+# XML, QN and JSON Serialization
 
 Serialization helpers through extension methods and introducing QN.
 
@@ -8,7 +8,11 @@ This form of serialization and de-serialization is used by FAAC/MILO in certain 
 protocols and provides notation that is similar to JSON, yet entirely built in C#. The Serialization-Extension class called SerEx implements
 all of the required code.
 
-For example, to serialize POCO classes to XML as a formatted document:
+Encoding and decoding of QN format was later generalized to allow configuration as JSON. This results in a stand-alone, single code file to encode/decode JSON. 
+
+The XML serialization provided is simply a shortcut to .Net XML Serialization foundational classes. It is easier though to simply call extension methods.
+
+As a first example, to serialize POCO classes to XML as a formatted document:
 
 ```csharp
 var xml = data.ToXml();
@@ -65,5 +69,16 @@ This results as:
 And de-serialize in same fashion:
 
 ```csharp
-var data3 = SerEx.FromQn(qn);
+var data3 = SerEx.FromQn<Data>(qn);
+```
+
+And in the same fashion, serialize and de-serialize of JSON :
+```csharp
+var json = data.ToJson();
+var cloneOverJson = SerEx.FromJson<Data>(json);
+```
+
+And the JSON data looks as such:
+```json
+{"Bytes":"AQIDBAU=","Children":[{"Parent":null,"Date":"2020-07-12T03:48:36.976Z","En":"Val1","SomeText":"I'm a child"},{"Date":"2020-07-12T03:48:36.976Z","En":"Val1","SomeText":"I'm a child"}],"Date":"2020-07-12T03:48:36.933Z","En":"Val1","SomeText":"xyz\r\nnext line","SomeInt":4,"SomeTextNode":"node value & with special characters \r\n>>\t great!\"yay!\"","SomeIntNode":5}
 ```
