@@ -230,7 +230,11 @@ namespace QN
                     return $"{qnCfg.Quote}{dateText}{qnCfg.Quote}";
                 }
 
-                if (t == typeof(bool) && qnCfg.BooleanAsLowecase) return (bool) data ? "true" : "false";
+                if (t == typeof(bool) && qnCfg.BooleanAsLowecase) {
+                    var br = (bool) data ? "true" : "false";
+                    if (qnCfg.BooleanInQuotes) return $"{qnCfg.Quote}{br}{qnCfg.Quote}";
+                    return br;
+                }
                 if (t.IsEnum) {
                     switch (qnCfg.EnumEncoding) {
                         case EnumEncodingOption.NameOnly: return Convert.ToString(data, CultureInfo.InvariantCulture);
@@ -679,6 +683,7 @@ namespace QN
             if (t == typeof(double)) return double.Parse(encoded, CultureInfo.InvariantCulture);
             if (t == typeof(decimal)) return decimal.Parse(encoded, CultureInfo.InvariantCulture);
             if (t == typeof(bool)) {
+                if (qnCfg.BooleanInQuotes) encoded = encoded.Trim(qnCfg.Quote);
                 var str = encoded.ToString();
                 if (bool.TryParse(str, out var b)) return b;
                 if (str.Equals("true", StringComparison.InvariantCultureIgnoreCase)) return true;
@@ -826,8 +831,12 @@ namespace QN
                     helper.SkipWhiteSpaces();
                     if (helper.Current == qnCfg.Quote) {
                         // inStr
+                        var strStartIdx = helper.CurrentIndex;
                         var str = decodeQnString(helper, qnCfg);
-                        if (elT == typeof(byte[])) {
+                        var strEndIdx = helper.CurrentIndex;
+                        if (elT == typeof(object) || elT == typeof(QnObject))
+                            list.Add(new QnObject {RawText = helper.AllText.Substring(strStartIdx, strEndIdx - strStartIdx), Config = qnCfg});
+                        else if (elT == typeof(byte[])) {
                             list.Add(Convert.FromBase64String(str));
                         } else {
                             Debug.Assert(elT == typeof(string));
@@ -1234,6 +1243,7 @@ namespace QN
             NullStr = "null",
             EncodeStringAsDoubleQuote = false,
             BooleanAsLowecase = true,
+            BooleanInQuotes = true,
             SupportLegacyStringArrayWithPipe = false,
             EnumEncoding = EnumEncodingOption.QuotedName
         };
@@ -1269,6 +1279,7 @@ namespace QN
         public override string ToString() => Name;
         // defaults and decelerations
         public bool BooleanAsLowecase;
+        public bool BooleanInQuotes;
         public string DateStringFormat;
         public string DateFormat;
         public char DictionarySep = ':';
