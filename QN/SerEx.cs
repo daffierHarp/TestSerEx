@@ -838,6 +838,9 @@ namespace QN
                             list.Add(new QnObject {RawText = helper.AllText.Substring(strStartIdx, strEndIdx - strStartIdx), Config = qnCfg});
                         else if (elT == typeof(byte[])) {
                             list.Add(Convert.FromBase64String(str));
+                        } else if (elT == typeof(bool)) {
+                            var bv = str.Equals("true", StringComparison.CurrentCultureIgnoreCase);
+                            list.Add(bv);
                         } else {
                             Debug.Assert(elT == typeof(string));
                             list.Add(str);
@@ -1319,7 +1322,7 @@ namespace QN
         QnObject[] _arr;
         Dictionary<string, QnObject> _dic;
         public override string ToString() => RawText.ToString();
-        public T Parse<T>() => SerEx.FromQn<T>(RawText, Config);
+        public T Parse<T>() => SerEx.FromQn<T>(RawText, Config, true);
         public bool IsArray => RawText.GetNextNonWhiteChar(out _) == Config.OpenArray[0];
         public QnObject[] ParseArray() => _arr ?? (_arr= IsArray ? Parse<QnObject[]>():new QnObject[0]);
         public bool IsClass
@@ -1549,6 +1552,9 @@ namespace QN
 
         public void SkipOne()
         {
+            if (!_curr.HasValue) {
+                var ignore = Current;
+            }
             _curr = null;
         }
 
