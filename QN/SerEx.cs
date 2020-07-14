@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -37,6 +38,7 @@ namespace QN
             return sb.ToString();
         }
 
+        const string XmlInstanceSchemeNamespace = "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"";
         // this version either makes a minimal text, or the non-minimal one is well-formed document, and the xml line has UTF8 encoding
         public static string ToXml<T>(this T item, bool minimal, bool removeNamespace = true,
             bool newLineEntitize = true)
@@ -59,9 +61,7 @@ namespace QN
 
             stream.Flush();
             if (removeNamespace)
-                sb.Replace(
-                    " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"",
-                    "");
+                sb.Replace(" "+XmlInstanceSchemeNamespace, "");
             return sb.ToString();
         }
 
@@ -69,6 +69,12 @@ namespace QN
         {
             if (xml == null)
                 return default(T);
+            if (xml.IndexOf(XmlInstanceSchemeNamespace, StringComparison.Ordinal) < 0) {
+                var dataStart = $"<{typeof(T).Name}";
+                int startIdx = xml.IndexOf(dataStart, StringComparison.Ordinal);
+                xml = xml.Substring(0, startIdx + dataStart.Length) + " " + XmlInstanceSchemeNamespace +
+                      xml.Substring(startIdx + dataStart.Length);
+            }
             var ser = new XmlSerializer(typeof(T));
             var reader = new StringReader(xml);
             var result = (T) ser.Deserialize(reader);
@@ -102,6 +108,7 @@ namespace QN
         public static T FromQn<T>(string qn, bool tryQuotes = false) => (T) decodeQnInner(qn, typeof(T), QnConfig.Default, tryQuotes);//(T) decodeComplexData(qn, typeof(T), tryQuotes);
 
         public static T FromQn<T>(string qn, QnConfig qnCfg, bool tryQuotes = false) => (T) decodeQnInner(qn, typeof(T), qnCfg, tryQuotes);
+        public static object FromQn(string qn, QnConfig qnCfg, Type t, bool tryQuotes = false) => decodeQnInner(qn, t, qnCfg, tryQuotes);
 
         public static string ToJson<T>(this T o) => o.ToQn(QnConfig.Json);
         public static T FromJson<T>(string json) => FromQn<T>(json, QnConfig.Json);
@@ -177,6 +184,20 @@ namespace QN
             return helper.TextSoFar;
         }
         #region inner implementation
+
+        static bool hasAttr<T>(this MemberInfo mi) where T:Attribute
+        {
+            // ReSharper disable once ArrangeMethodOrOperatorBody
+            return Attribute.IsDefined(mi, typeof(T));
+        }
+
+        static T getAttr<T>(this MemberInfo mi) where T: Attribute
+        {
+            var attr = mi.GetCustomAttributes(typeof(T), false);
+            if (attr.Length > 0)
+                return (T) attr[0];
+            return null;
+        }
 
         // ReSharper disable once InconsistentNaming
         public static Action<string, int> doLog = (s, level) => { Debug.WriteLine($"{level}:\t{s}"); };
@@ -314,7 +335,10 @@ namespace QN
                 var firstV = true;
                 foreach (var fi in fields) {
                     var v = fi.GetValue(data);
-                    if (testDefault(v)) continue;
+                    if (fi.hasAttr<NonSerializedAttribute>() || fi.hasAttr<XmlIgnoreAttribute>()) continue;
+                    if (fi.hasAttr<DefaultValueAttribute>()) {
+                        if (v == fi.getAttr<DefaultValueAttribute>().Value) continue;
+                    } else if (testDefault(v)) continue;
                     if (!firstV)
                         sb.Append(',');
                     else
@@ -330,7 +354,10 @@ namespace QN
                     if (pi.IsSpecialName || !pi.CanRead || !pi.CanWrite || pi.GetIndexParameters().Length > 0)
                         continue;
                     var v = pi.GetValue(data, null);
-                    if (testDefault(v)) continue;
+                    if (pi.hasAttr<NonSerializedAttribute>() || pi.hasAttr<XmlIgnoreAttribute>()) continue;
+                    if (pi.hasAttr<DefaultValueAttribute>()) {
+                        if (v == pi.getAttr<DefaultValueAttribute>().Value) continue;
+                    } else if (testDefault(v)) continue;
                     if (!firstV)
                         sb.Append(',');
                     else
@@ -647,8 +674,9 @@ namespace QN
         // decode with configuration, supports json
         static object decodeQnInner(Slice encoded, Type t, QnConfig qnCfg, bool tryQuotes = false)
         {
-            if (encoded == qnCfg.NullStr || encoded == "(null)") return null; // internal null object
+            if (encoded == qnCfg.NullStr || encoded == qnCfg.NullStr.Trim(qnCfg.Quote)) return null;
             if (qnCfg.ExceptionAsStringEncodedXml) {
+                if (encoded == "(null)") return null; // internal null object
                 if (encoded.StartsWith("\"<Exception "))
                     encoded = decodeQnString(new ParseHelper(encoded), qnCfg);
                 if (encoded.StartsWith("<Exception ")) {
@@ -834,7 +862,9 @@ namespace QN
                         var strStartIdx = helper.CurrentIndex;
                         var str = decodeQnString(helper, qnCfg);
                         var strEndIdx = helper.CurrentIndex;
-                        if (elT == typeof(object) || elT == typeof(QnObject))
+                        if (qnCfg.NullStr.Length>0 && qnCfg.NullStr[0]==qnCfg.Quote && (str == qnCfg.NullStr || str == qnCfg.NullStr.Trim(qnCfg.Quote))) {
+                            list.Add(null);
+                        } else if (elT == typeof(object) || elT == typeof(QnObject))
                             list.Add(new QnObject {RawText = helper.AllText.Substring(strStartIdx, strEndIdx - strStartIdx), Config = qnCfg});
                         else if (elT == typeof(byte[])) {
                             list.Add(Convert.FromBase64String(str));
@@ -851,14 +881,20 @@ namespace QN
                         if (qnCfg.AddClassName && char.IsLetter(helper.Current)) helper.SkipToAny($" {qnCfg.OpenRecord}{qnCfg.OpenArray}{qnCfg.OpenDictionary}");
                         if (helper.Current == qnCfg.OpenRecord || helper.PeekPhrase(qnCfg.OpenDictionary) || helper.PeekPhrase(qnCfg.OpenArray))
                             elPart = readQnBlock(helper, qnCfg);
-                        else
+                        else if (qnCfg.NullStr == "" && helper.Current == ',') {
+                            elPart = "";
+                        } else
                             elPart = helper.ReadToAny($",{qnCfg.CloseArray}");
                         var item = decodeQnInner(elPart, elT, qnCfg, true);
                         list.Add(item);
                     }
 
                     helper.SkipWhiteSpaces();
-                    if (helper.Current == ',') helper.SkipOne();
+                    if (helper.Current == ',') {
+                        helper.SkipOne();
+                        if (qnCfg.NullStr == "" && helper.Current == qnCfg.CloseArray)
+                            list.Add(null);
+                    }
                 }
 
                 if (t.IsArray) {
@@ -1243,7 +1279,7 @@ namespace QN
             DateInUtc = true,
             ExceptionAsStringEncodedXml = false,
             ExceptionStringFormat = "{'ExceptionMessage':'{0}'}",
-            NullStr = "null",
+            NullStr = "\"null\"",
             EncodeStringAsDoubleQuote = false,
             BooleanAsLowecase = true,
             BooleanInQuotes = true,
@@ -1260,7 +1296,7 @@ namespace QN
             DictionaryItemOpen = "{",
             CloseDictionary = '}',
             OpenArray = "new[]{",
-            CloseArray = ']',
+            CloseArray = '}',
             FieldSep = '=',
             DictionarySep = ',',
             FieldNameInQuotes = false,
@@ -1323,6 +1359,10 @@ namespace QN
         Dictionary<string, QnObject> _dic;
         public override string ToString() => RawText.ToString();
         public T Parse<T>() => SerEx.FromQn<T>(RawText, Config, true);
+        public object Parse(Type t) { return SerEx.FromQn(RawText, Config, t, true); }
+        public string ParseString() { return Parse<string>(); }
+        public float ParseFloat() { return Parse<float>(); }
+        public int ParseInt() { return Parse<int>(); }
         public bool IsArray => RawText.GetNextNonWhiteChar(out _) == Config.OpenArray[0];
         public QnObject[] ParseArray() => _arr ?? (_arr= IsArray ? Parse<QnObject[]>():new QnObject[0]);
         public bool IsClass

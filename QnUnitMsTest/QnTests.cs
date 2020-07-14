@@ -37,14 +37,18 @@ namespace QnUnitMsTest
             foreach (var fi in t.GetFields()) {
                 var originalV = fi.GetValue(a);
                 var cloneV = fi.GetValue(b);
-                Assert.IsTrue(originalV.EqVals(cloneV, nullEqEmptyLists:true, matchLineEnds:true), $"{fi.Name} values are not equal");
+                bool areEq = originalV.EqVals(cloneV, nullEqEmptyLists: true, matchLineEnds: true);
+                if (!areEq && Debugger.IsAttached) Debugger.Break();
+                Assert.IsTrue(areEq, $"{fi.Name} values are not equal");
                 if (originalV is string origStr && cloneV is string cloneStr && origStr!=cloneStr)
                     Debug.WriteLine($"{fi.Name} values do not really match\r\n{origStr.Escape()}\r\n!=\r\n{cloneStr.Escape()}");
             }
             foreach (var pi in t.GetProperties()) {
                 var originalV = pi.GetValue(a);
                 var cloneV = pi.GetValue(b);
-                Assert.IsTrue(originalV.EqVals(cloneV, nullEqEmptyLists:true, matchLineEnds:true), $"{pi.Name} values are equal");
+                var areEq = originalV.EqVals(cloneV, nullEqEmptyLists: true, matchLineEnds: true);
+                if (!areEq && Debugger.IsAttached) Debugger.Break();
+                Assert.IsTrue(areEq, $"{pi.Name} values are equal");
                 if (originalV is string origStr && cloneV is string cloneStr && origStr!=cloneStr)
                     Debug.WriteLine($"{pi.Name} values do not really match\r\n{origStr.Escape()}\r\n!=\r\n{cloneStr.Escape()}");
             }

@@ -23,6 +23,9 @@ namespace TestSerEx
         public Data Parent;
         public DateTime Date = DateTime.Now;
         public MyEn En = MyEn.Val1;
+        public bool B = true;
+        public string[] StringArray = new string[3];
+        public Data[] DataArray = new Data[3];
     }
     public class DataWithD
     {
