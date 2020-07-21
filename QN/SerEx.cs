@@ -1314,6 +1314,9 @@ namespace QN
             DateStringFormat = "DateTime.ParseExact(\"{0}\",\"g\",CultureInfo.InvariantCulture)",
             EnumEncoding = EnumEncodingOption.TypeDotName
         };
+
+        public static readonly QnConfig QnAltQuote = new QnConfig {Quote = '\'', Name = "QnAltQuote"};
+
         public string Name = "QN";
         public override string ToString() => Name;
         // defaults and decelerations
