@@ -1279,7 +1279,7 @@ namespace QN
             DateInUtc = true,
             ExceptionAsStringEncodedXml = false,
             ExceptionStringFormat = "{'ExceptionMessage':'{0}'}",
-            NullStr = "\"null\"",
+            NullStr = "null",
             EncodeStringAsDoubleQuote = false,
             BooleanAsLowecase = true,
             BooleanInQuotes = false,
