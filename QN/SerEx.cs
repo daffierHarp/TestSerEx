@@ -1282,7 +1282,7 @@ namespace QN
             NullStr = "\"null\"",
             EncodeStringAsDoubleQuote = false,
             BooleanAsLowecase = true,
-            BooleanInQuotes = true,
+            BooleanInQuotes = false,
             SupportLegacyStringArrayWithPipe = false,
             EnumEncoding = EnumEncodingOption.QuotedName
         };
