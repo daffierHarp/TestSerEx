@@ -1068,6 +1068,82 @@ namespace QN
             return result.ToString();
         }
 
+        public static string Tabify(this string data, QnConfig cfg = null, string whites = " \t\r\n", string tab = "   ")
+        {
+            if (cfg == null) cfg = QnConfig.Default;
+            var sb = new StringBuilder();
+            var openers = $"{cfg.OpenRecord}{cfg.OpenDictionary}{cfg.OpenArray}{cfg.DictionaryItemOpen}";
+            var closers = $"{cfg.CloseRecord}{cfg.CloseDictionary}{cfg.CloseArray}{cfg.DictionaryItemClose}";
+            var spacers = $"{cfg.FieldSep}{cfg.DictionarySep}";
+            var newLiners = $",${openers}";
+            var stack = new Stack<int>();
+            bool inStr = false;
+            for (int i = 0; i < data.Length; i++) {
+                var c = data[i];
+                if (inStr) {
+                    sb.Append(c);
+                    if (!cfg.EncodeStringAsDoubleQuote) { // escaped
+                        if (c == '\\') {
+                            sb.Append(data[i + 1]);
+                            i++;
+                            continue;
+                        }
+                    }
+
+                    if (c == cfg.Quote) inStr = false;
+                    continue;
+                }
+
+                if (c == cfg.Quote) {
+                    inStr = true;
+                    sb.Append(c);
+                    continue;
+                }
+                // skip all default white spaces
+                if (char.IsWhiteSpace(c) || whites.IndexOf(c) >= 0) continue;
+                int closerIdx = closers.IndexOf(c);
+                int openerIdx = openers.IndexOf(c);
+                if (closerIdx >= 0 || openerIdx >= 0) {
+                    sb.Append("\r\n");
+                    if (stack.Count > 0) {
+                        for (int j = 0; j < stack.Count-1; j++)
+                            sb.Append(tab);
+                        if (openerIdx>=0) sb.Append(tab);
+                    }
+                }
+                sb.Append(c);
+                var newLnIdx = newLiners.IndexOf(c);
+                var spacerIdx = spacers.IndexOf(c);
+                if (spacerIdx >= 0) {
+                    sb.Append(" ");
+                    continue;
+                }
+                if (newLnIdx >= 0) {
+                    sb.Append("\r\n");
+                    if (stack.Count > 0) {
+                        for (int j = 0; j < stack.Count; j++)
+                            sb.Append(tab);
+                    }
+
+                    if (openerIdx >= 0) sb.Append(tab);
+                }
+                if (openerIdx < 0 && closerIdx < 0) {
+                    continue;
+                }
+
+                if (openerIdx >= 0) {
+                    stack.Push(openerIdx);
+                    continue;
+                }
+
+                if (closerIdx == stack.Peek()) {
+                    stack.Pop();
+                    continue;
+                }
+            }
+
+            return sb.ToString();
+        }
 
         public static Slice GetSlice(this string s, int index = 0, int length = -1) =>
             new Slice {OriginalString = s, StartIndex = index, LengthOfSubstring = length};

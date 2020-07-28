@@ -87,6 +87,7 @@ namespace TestSerEx
             var data2Clone = SerEx.FromQn<Data>(qn2);
             var qn1 = data1.ToQn();
             WriteLine($"data1={qn1}");
+            WriteLine($"tabified qn:\r\n{qn1.Tabify(QnConfig.Default)}");
             var clone3 = SerEx.FromQn<Data>(data1.ToQn());
             WriteLine($"clone3={clone3.ToQn()}");
             WriteLine($"data1.SomeTextNode==clone3.SomeTextNode?{data1.SomeTextNode==clone3.SomeTextNode},data1.Date==clone3.Date?{eq(data1.Date,clone3.Date)}");
@@ -95,6 +96,7 @@ namespace TestSerEx
             WriteLine("\r\nencode as QN with JSON config");
             var json = data1.ToQn(QnConfig.Json);
             WriteLine($"json={json}");
+            WriteLine($"tabified json:\r\n{json.Tabify(QnConfig.Json)}");
             var jsonClone = SerEx.FromQn<Data>(json, QnConfig.Json);
             WriteLine($"data1.SomeTextNode==jsonClone.SomeTextNode?{data1.SomeTextNode==jsonClone.SomeTextNode},data1.Date==jsonClone.Date?{eq(data1.Date,jsonClone.Date,withSeconds:true)}");
 
