@@ -687,7 +687,10 @@ namespace QN
                     return new Dictionary<string, object> {{"IsException", true}, {"Message", msg}};
                 }
             }
-
+            else if (qnCfg == QnConfig.Json && encoded.StartsWith("{\"Exception") && t!=typeof(Dictionary<string,QnObject>)) {
+                return new QnObject { Config = qnCfg,RawText = encoded};
+                // TODO: QN decodes exception as dictionary<string,object> while json as QnObject - should be something more useful
+            }
             if (t == null || t == typeof(object) || t == typeof(QnObject)) return new QnObject {Config = qnCfg, RawText = encoded};
             if (t.IsInterface) {
                 doLog("Decoding data as interface not supported!", 10);
@@ -1354,7 +1357,7 @@ namespace QN
             DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ",
             DateInUtc = true,
             ExceptionAsStringEncodedXml = false,
-            ExceptionStringFormat = "{'ExceptionMessage':'{0}'}",
+            ExceptionStringFormat = "{{\"ExceptionMessage\":\"{0}\"}}",
             NullStr = "null",
             EncodeStringAsDoubleQuote = false,
             BooleanAsLowecase = true,
