@@ -215,14 +215,6 @@ namespace QN
                 return "";
             }
 
-            if (data is Exception ex) {
-                if (qnCfg.ExceptionAsStringEncodedXml)
-                    return "\"" +
-                           ("<Exception Text=\"" + ex.Message.Replace("\"", "&quot;") + "\"/>").Replace("\"", "\"\"") +
-                           "\"";
-                return string.Format(qnCfg.ExceptionStringFormat, ex.Message.Escape(false));
-            }
-
             if (data != null && data.GetType().IsClass && data.GetType()!=typeof(string)) {
                 if (ComplexOverride.ContainsKey(data)) return ComplexOverride[data];
                 if (cyclesTraceList.Contains(data)) {
@@ -386,22 +378,6 @@ namespace QN
             return Equals(v, def);
         }
 
-        static string decodeQuotedString(ParseHelper helper)
-        {
-            Debug.Assert(helper.Current == '\"');
-            helper.SkipOne();
-            var sb = new StringBuilder();
-            while (!helper.HasEnded) {
-                sb.Append(helper.ReadToAndSkip('\"'));
-                if (helper.Current != '\"')
-                    break;
-                sb.Append('\"');
-                helper.SkipOne();
-            }
-
-            return sb.ToString();
-        }
-
         static string decodeQnString(ParseHelper helper, QnConfig qnCfg)
         {
             Debug.Assert(helper.Current == qnCfg.Quote);
@@ -435,262 +411,10 @@ namespace QN
             return s.Unescape();
         }
 
-        // legacy, qn only with no configuration, no QnObject
-        static object decodeComplexData(string encoded, Type t, bool tryQuotes = false)
-        {
-            if (encoded == "" || encoded == "(null)") return null; // internal null object
-            if (encoded.StartsWith("\"<Exception "))
-                encoded = decodeQuotedString(new ParseHelper(encoded));
-            if (encoded.StartsWith("<Exception ")) {
-                var exLine = encoded;
-                var i0 = exLine.IndexOf('\"');
-                var i1 = exLine.LastIndexOf('\"');
-                var msg = exLine.Substring(i0 + 1, i1 - i0 - 1).Replace("&quot;", "\"");
-                return new Dictionary<string, object> {{"IsException", true}, {"Message", msg}};
-            }
-
-            if (t == null) return encoded;
-            if (t.IsInterface) {
-                doLog("Decoding data as interface not supported!", 10);
-                return null;
-            }
-
-            var helper = new ParseHelper(encoded);
-            if (t == typeof(string))
-                return tryQuotes && helper.Current == '\"' ? decodeQuotedString(helper) : encoded;
-            if (encoded.StartsWith("(")) {
-                var resultRecord = Activator.CreateInstance(t);
-                helper.SkipOne();
-
-                // record
-                while (helper.Current != ')') {
-                    helper.SkipWhiteSpaces();
-
-                    var fieldName = helper.ReadToAndSkip(':').Trim(' ', '\r', '\n', '\t');
-                    helper.SkipWhiteSpaces();
-                    var fi = t.GetField(fieldName);
-                    var pi = t.GetProperty(fieldName);
-                    var ft = fi == null ? pi == null ? null : pi.PropertyType : fi.FieldType;
-
-                    // ReSharper disable once RedundantAssignment
-                    object fieldValue = null;
-                    if (helper.Current == '(' || helper.Current == '[') {
-                        var complex = readComplexBlock(helper);
-                        fieldValue = decodeComplexData(complex, ft);
-                    } else if (helper.Current == '\"') {
-                        fieldValue = decodeQuotedString(helper);
-                    } else {
-                        var dataStr = helper.ReadToAny(",)");
-                        fieldValue = decodeComplexData(dataStr, ft);
-                    }
-
-                    if (ft == typeof(byte[]) && fieldValue is string str) fieldValue = decodeComplexData(str, ft);
-                    if (ft == typeof(DateTime))
-                        fieldValue = DateTime.TryParseExact((string) fieldValue, "g", CultureInfo.InvariantCulture,
-                            DateTimeStyles.None, out var dateResult)
-                            ? dateResult
-                            : default(DateTime);
-                    if (fi != null) fi.SetValue(resultRecord, fieldValue);
-                    else if (pi != null)
-                        try {
-                            pi.SetValue(resultRecord, fieldValue, null);
-                        } catch { }
-
-                    helper.SkipWhiteSpaces();
-                    if (helper.Current == ',') helper.SkipOne();
-                    helper.SkipWhiteSpaces();
-                }
-
-                return resultRecord;
-            }
-
-            if (encoded.StartsWith("[")) {
-                helper.SkipOne();
-                // array or dictionary
-                if (typeof(IDictionary).IsAssignableFrom(t)) {
-                    var dic = (IDictionary) Activator.CreateInstance(t);
-                    Debug.Assert(dic != null);
-                    var keyType = t.GetGenericArguments()[0];
-                    var valueType = t.GetGenericArguments()[1];
-
-                    while (helper.Current != ']') {
-                        helper.SkipWhiteSpaces();
-                        string keyPart;
-                        if (helper.Current == '(' || helper.Current == '[')
-                            keyPart = readComplexBlock(helper, true);
-                        else
-                            keyPart = helper.ReadToAny(":").Trim(' ', '\t', '\r', '\n');
-
-                        var key = decodeComplexData(keyPart, keyType, true);
-                        helper.SkipOne(); // :
-                        helper.SkipWhiteSpaces();
-                        string vPart;
-                        if (helper.Current == '(' || helper.Current == '[')
-                            vPart = readComplexBlock(helper);
-                        else
-                            vPart = helper.ReadToAny("],");
-                        vPart = vPart.Trim(' ', '\t', '\r', '\n');
-                        var v = decodeComplexData(vPart, valueType, true);
-                        dic.Add(key, v);
-                        helper.SkipWhiteSpaces();
-                        if (helper.Current == ',') helper.SkipOne();
-                    }
-
-                    return dic;
-                }
-
-                var elT = t.GenericTypeArguments.Length == 1 ? t.GenericTypeArguments[0] : t.GetElementType();
-                Debug.Assert(elT != null);
-                var listType = typeof(List<>).MakeGenericType(elT);
-                var list = (IList) Activator.CreateInstance(listType);
-                Debug.Assert(list != null);
-                while (helper.Current != ']') {
-                    helper.SkipWhiteSpaces();
-                    if (helper.Current == '\"') {
-                        // inStr
-                        var str = decodeQuotedString(helper);
-                        if (elT == typeof(byte[])) {
-                            list.Add(Convert.FromBase64String(str));
-                        } else {
-                            Debug.Assert(elT == typeof(string));
-                            list.Add(str);
-                        }
-                    } else {
-                        string elPart;
-                        if (helper.Current == '(' || helper.Current == '[')
-                            elPart = readComplexBlock(helper);
-                        else
-                            elPart = helper.ReadToAny(",]");
-                        var item = decodeComplexData(elPart, elT, true);
-                        list.Add(item);
-                    }
-
-                    helper.SkipWhiteSpaces();
-                    if (helper.Current == ',') helper.SkipOne();
-                }
-
-                if (t.IsArray) {
-                    var arr = Array.CreateInstance(elT, list.Count);
-                    list.CopyTo(arr, 0);
-                    return arr;
-                }
-
-                return list; // IEnumerable<T> or list<T>
-            }
-
-            if (t == typeof(string)) {
-                if (tryQuotes && helper.IsCurrentWhiteSpace() &&
-                    helper.NextNonWhiteSpace(out var nextNonWhiteIndex) == '\"')
-                    helper.SkipToIndex(nextNonWhiteIndex);
-                return tryQuotes && helper.Current == '\"' ? decodeQuotedString(helper) : encoded;
-            }
-
-            if (helper.IsCurrentWhiteSpace() || ParseHelper.IsWhiteSpace(encoded[encoded.Length - 1])) {
-                encoded = encoded.Trim(' ', '\t', '\r', '\n');
-                helper = new ParseHelper(encoded);
-            }
-
-            if (t == typeof(int)) return int.Parse(encoded);
-            if (t == typeof(float)) return float.Parse(encoded, CultureInfo.InvariantCulture);
-            if (t == typeof(double)) return double.Parse(encoded, CultureInfo.InvariantCulture);
-            if (t == typeof(decimal)) return decimal.Parse(encoded, CultureInfo.InvariantCulture);
-            if (t == typeof(bool)) return bool.Parse(encoded);
-            if (t == typeof(byte)) return byte.Parse(encoded);
-            if (t == typeof(byte[])) {
-                var txt = helper.Current == '\"' ? decodeQuotedString(helper) : encoded;
-                return Convert.FromBase64String(txt);
-            }
-
-            if (t.IsEnum) return Enum.Parse(t, encoded);
-            if (t == typeof(DateTime?)) {
-                if (string.IsNullOrWhiteSpace(encoded) || encoded == "\"\"") return null;
-                t = typeof(DateTime);
-            }
-
-            if (t == typeof(DateTime)) {
-                if (DateTime.TryParseExact(encoded.Trim('\"'), "g", CultureInfo.InvariantCulture, DateTimeStyles.None,
-                    out var dateResult))
-                    return dateResult;
-                return default(DateTime);
-            }
-
-            if (t == typeof(string[])) // legacy
-                return encoded.Split('|');
-            throw new Exception("Unsupported encoding or type");
-        }
-
-        static string readComplexBlock(ParseHelper helper, bool stopAtNextColon = false)
-        {
-            var sb = new StringBuilder();
-            var blockStack = new Stack<char>();
-            var inStr = false;
-            blockStack.Push(',');
-            while ("[(".IndexOf(helper.Current) >= 0) {
-                sb.Append(helper.Current);
-                blockStack.Push(helper.Current);
-                helper.SkipOne();
-            }
-
-            while (blockStack.Count > 0) {
-                var readPart = helper.ReadToAny(",;}[]()\":");
-                sb.Append(readPart);
-                var lastChr = helper.Current;
-                if (inStr) {
-                    if (lastChr == '\"') inStr = false;
-
-                    sb.Append(lastChr);
-                    helper.SkipOne();
-                    continue;
-                }
-
-                if (lastChr == '\"')
-                    inStr = true;
-                else if ("[(".IndexOf(lastChr) >= 0)
-                    blockStack.Push(lastChr);
-                else
-                    switch (blockStack.Peek()) {
-                        case '[':
-                            if (lastChr == ']') blockStack.Pop();
-                            break;
-                        case '(':
-                            if (lastChr == ')') blockStack.Pop();
-                            break;
-                        case ',':
-                            if (lastChr == ',' || lastChr == ';'
-                                               || lastChr == ')' || lastChr == ']'
-                                               || lastChr == ':' && stopAtNextColon) blockStack.Pop();
-                            break;
-                    }
-
-                if (blockStack.Count > 0) {
-                    sb.Append(lastChr);
-                    helper.SkipOne();
-                }
-            }
-
-            var complexDataString = sb.ToString();
-            return complexDataString;
-        }
         // decode with configuration, supports json
         static object decodeQnInner(Slice encoded, Type t, QnConfig qnCfg, bool tryQuotes = false)
         {
             if (encoded == qnCfg.NullStr || encoded == qnCfg.NullStr.Trim(qnCfg.Quote)) return null;
-            if (qnCfg.ExceptionAsStringEncodedXml) {
-                if (encoded == "(null)") return null; // internal null object
-                if (encoded.StartsWith("\"<Exception "))
-                    encoded = decodeQnString(new ParseHelper(encoded), qnCfg);
-                if (encoded.StartsWith("<Exception ")) {
-                    var exLine = encoded;
-                    var i0 = exLine.IndexOf('\"');
-                    var i1 = exLine.LastIndexOf('\"');
-                    var msg = exLine.Substring(i0 + 1, i1 - i0 - 1).ToString().Replace("&quot;", "\"");
-                    return new Dictionary<string, object> {{"IsException", true}, {"Message", msg}};
-                }
-            }
-            else if (qnCfg == QnConfig.Json && encoded.StartsWith("{\"Exception") && t!=typeof(Dictionary<string,QnObject>)) {
-                return new QnObject { Config = qnCfg,RawText = encoded};
-                // TODO: QN decodes exception as dictionary<string,object> while json as QnObject - should be something more useful
-            }
             if (t == null || t == typeof(object) || t == typeof(QnObject)) return new QnObject {Config = qnCfg, RawText = encoded};
             if (t.IsInterface) {
                 doLog("Decoding data as interface not supported!", 10);
@@ -1141,6 +865,7 @@ namespace QN
 
                 if (closerIdx == stack.Peek()) {
                     stack.Pop();
+                    // ReSharper disable once RedundantJumpStatement
                     continue;
                 }
             }
@@ -1356,8 +1081,6 @@ namespace QN
             UseDateFormatter = true,
             DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ",
             DateInUtc = true,
-            ExceptionAsStringEncodedXml = false,
-            ExceptionStringFormat = "{{\"ExceptionMessage\":\"{0}\"}}",
             NullStr = "null",
             EncodeStringAsDoubleQuote = false,
             BooleanAsLowecase = true,
@@ -1380,7 +1103,6 @@ namespace QN
             DictionarySep = ',',
             FieldNameInQuotes = false,
             SupportEitherQuoteChar = false,
-            ExceptionAsStringEncodedXml = false,
             NullStr = "null",
             EncodeStringAsDoubleQuote = false,
             BooleanAsLowecase = true,
@@ -1405,8 +1127,6 @@ namespace QN
         public string DateFormat;
         public char DictionarySep = ':';
         public bool EncodeStringAsDoubleQuote = true;
-        public bool ExceptionAsStringEncodedXml = true;
-        public string ExceptionStringFormat;
         public bool FieldNameInQuotes;
         public char FieldSep = ':';
         public int FieldsLimit = 50;
