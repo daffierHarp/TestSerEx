@@ -598,6 +598,9 @@ namespace QN
                         } else if (elT == typeof(bool)) {
                             var bv = str.Equals("true", StringComparison.CurrentCultureIgnoreCase);
                             list.Add(bv);
+                        } else if (elT.IsEnum) {
+                            var v = Enum.Parse(elT, str);
+                            list.Add(v);
                         } else {
                             Debug.Assert(elT == typeof(string));
                             list.Add(str);
