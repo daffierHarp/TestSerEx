@@ -104,6 +104,8 @@ namespace TestSerEx
             WriteLine("\r\nencode as QN with \'C# Object Init\' config");
             var csoi = data1.ToQn(QnConfig.CSharpObjectInit);
             WriteLine($"csoi={csoi}");
+            WriteLine("tabified C# object notation:");
+            WriteLine(csoi.Tabify(QnConfig.Json)); // tabify doesn't support c-sharp notation
             // cannot actually decode csoi
 
             // encode/decode dictionaries

@@ -258,7 +258,11 @@ namespace QN
                     return Convert.ToString(data, CultureInfo.InvariantCulture);
                 }
                 if (t.IsPrimitive) return Convert.ToString(data, CultureInfo.InvariantCulture);
-                if (t == typeof(byte[])) return qnCfg.Quote + Convert.ToBase64String((byte[]) data) + qnCfg.Quote;
+                if (t == typeof(byte[])) {
+                    if (qnCfg.AddClassName)
+                        return "Convert.FromBase64String(" + qnCfg.Quote + Convert.ToBase64String((byte[]) data) + qnCfg.Quote + ")";
+                    return qnCfg.Quote + Convert.ToBase64String((byte[]) data) + qnCfg.Quote;
+                }
                 var sb = new StringBuilder();
                 if (data is IDictionary d && (t.HasElementType || t.GenericTypeArguments.Length == 2)) {
                     if (qnCfg.OpenDictionary.Length == 1 || qnCfg.OpenDictionary.IndexOf('{') < 0)
@@ -809,7 +813,9 @@ namespace QN
             var stack = new Stack<int>();
             bool inStr = false;
             for (int i = 0; i < data.Length; i++) {
+                var lastC = i > 0 ? data[i - 1] : '\0';
                 var c = data[i];
+                var nextC = i < data.Length - 1 ? data[i + 1] : '\0';
                 if (inStr) {
                     sb.Append(c);
                     if (!cfg.EncodeStringAsDoubleQuote) { // escaped
@@ -830,15 +836,29 @@ namespace QN
                     continue;
                 }
                 // skip all default white spaces
-                if (char.IsWhiteSpace(c) || whites.IndexOf(c) >= 0) continue;
+                if (char.IsWhiteSpace(c) || whites.IndexOf(c) >= 0) {
+                    // unless char-space-char, this would be an unwanted behavior
+                    if (!(char.IsLetter(lastC) && char.IsLetter(nextC)))
+                        continue;
+                }
                 int closerIdx = closers.IndexOf(c);
                 int openerIdx = openers.IndexOf(c);
                 if (closerIdx >= 0 || openerIdx >= 0) {
-                    sb.Append("\r\n");
-                    if (stack.Count > 0) {
-                        for (int j = 0; j < stack.Count-1; j++)
-                            sb.Append(tab);
-                        if (openerIdx>=0) sb.Append(tab);
+                    // if open/close characters, don't break line such as empty array init
+                    if (openerIdx >= 0 && openerIdx == closers.IndexOf(nextC)) {
+                        sb.Append(c);
+                        sb.Append(nextC);
+                        i++;
+                        continue;
+                    }
+
+                    if (openers.IndexOf(lastC) < 0) {
+                        sb.Append("\r\n");
+                        if (stack.Count > 0) {
+                            for (int j = 0; j < stack.Count - 1; j++)
+                                sb.Append(tab);
+                            if (openerIdx >= 0) sb.Append(tab);
+                        }
                     }
                 }
                 sb.Append(c);
@@ -860,6 +880,7 @@ namespace QN
                 if (openerIdx < 0 && closerIdx < 0) {
                     continue;
                 }
+
 
                 if (openerIdx >= 0) {
                     stack.Push(openerIdx);
