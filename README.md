@@ -82,3 +82,12 @@ And the JSON data looks as such:
 ```json
 {"Bytes":"AQIDBAU=","Children":[{"Parent":null,"Date":"2020-07-12T03:48:36.976Z","En":"Val1","SomeText":"I'm a child"},{"Date":"2020-07-12T03:48:36.976Z","En":"Val1","SomeText":"I'm a child"}],"Date":"2020-07-12T03:48:36.933Z","En":"Val1","SomeText":"xyz\r\nnext line","SomeInt":4,"SomeTextNode":"node value & with special characters \r\n>>\t great!\"yay!\"","SomeIntNode":5}
 ```
+
+Finally, you could treat unparsed data dynamically without predefined class structures:
+```csharp
+UnparsedItem jo = SerEx.UnparsedJson(json);
+Dictionary<string, UnparsedItem> joDic = jo.ParseClass();
+UnparsedItem[] joDicChildren = joDic["Children"].ParseArray();
+Data joChild = jo["Children"][0].Parse<Data>();
+```
+When the class defining the structure has a public field of type object, the JSON or QN will be parsed as "UnparsedItem", allowing late parsing/translation of text-data to usable models.

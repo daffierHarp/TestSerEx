@@ -87,25 +87,25 @@ namespace TestSerEx
             var data2Clone = SerEx.FromQn<Data>(qn2);
             var qn1 = data1.ToQn();
             WriteLine($"data1={qn1}");
-            WriteLine($"tabified qn:\r\n{qn1.Tabify(QnConfig.Default)}");
+            WriteLine($"tabified qn:\r\n{qn1.Tabify(NotationConfig.Qn)}");
             var clone3 = SerEx.FromQn<Data>(data1.ToQn());
             WriteLine($"clone3={clone3.ToQn()}");
             WriteLine($"data1.SomeTextNode==clone3.SomeTextNode?{data1.SomeTextNode==clone3.SomeTextNode},data1.Date==clone3.Date?{eq(data1.Date,clone3.Date)}");
 
             // QN as JSON
             WriteLine("\r\nencode as QN with JSON config");
-            var json = data1.ToQn(QnConfig.Json);
+            var json = data1.ToNotation(NotationConfig.Json);
             WriteLine($"json={json}");
-            WriteLine($"tabified json:\r\n{json.Tabify(QnConfig.Json)}");
-            var jsonClone = SerEx.FromQn<Data>(json, QnConfig.Json);
+            WriteLine($"tabified json:\r\n{json.Tabify(NotationConfig.Json)}");
+            var jsonClone = SerEx.FromText<Data>(json, NotationConfig.Json);
             WriteLine($"data1.SomeTextNode==jsonClone.SomeTextNode?{data1.SomeTextNode==jsonClone.SomeTextNode},data1.Date==jsonClone.Date?{eq(data1.Date,jsonClone.Date,withSeconds:true)}");
 
             // QN as C# Object Init
             WriteLine("\r\nencode as QN with \'C# Object Init\' config");
-            var csoi = data1.ToQn(QnConfig.CSharpObjectInit);
+            var csoi = data1.ToNotation(NotationConfig.CSharpObjectInit);
             WriteLine($"csoi={csoi}");
             WriteLine("tabified C# object notation:");
-            WriteLine(csoi.Tabify(QnConfig.Json)); // tabify doesn't support c-sharp notation
+            WriteLine(csoi.Tabify(NotationConfig.Json)); // tabify doesn't support c-sharp notation
             // cannot actually decode csoi
 
             // encode/decode dictionaries
@@ -113,24 +113,24 @@ namespace TestSerEx
             var dd = new DataWithD { D = new Dictionary<string, int> { { "v", 2 }, { "item", 5} } };
             var ddQn = dd.ToQn(); WriteLine($"ddQn={ddQn}");
             var ddQnClone = SerEx.FromQn<DataWithD>(ddQn); 
-            var ddJson = dd.ToQn(QnConfig.Json); WriteLine($"ddJson={ddJson}");
-            var ddCs = dd.ToQn(QnConfig.CSharpObjectInit); WriteLine($"ddCs={ddCs}");
-            var ddJsonClone = SerEx.FromQn<DataWithD>(ddJson, QnConfig.Json);
+            var ddJson = dd.ToNotation(NotationConfig.Json); WriteLine($"ddJson={ddJson}");
+            var ddCs = dd.ToNotation(NotationConfig.CSharpObjectInit); WriteLine($"ddCs={ddCs}");
+            var ddJsonClone = SerEx.FromText<DataWithD>(ddJson, NotationConfig.Json);
 
             //var ddCsClone = SerEx.FromQn<DataWithD>(ddCs); // not implemented
             var multiRecords = ddJson + "\r\n" + json + "\r\n";
             var r = new StringReader(multiRecords);
-            var block1 = SerEx.ReadBlock(r, QnConfig.Json);
-            var block2 = SerEx.ReadBlock(r, QnConfig.Json);
-            var empty = SerEx.ReadBlock(r, QnConfig.Json);
+            var block1 = SerEx.ReadBlock(r, NotationConfig.Json);
+            var block2 = SerEx.ReadBlock(r, NotationConfig.Json);
+            var empty = SerEx.ReadBlock(r, NotationConfig.Json);
             
 
             // test QnObject decoding
-            var jo = SerEx.ParseJSon(json);
-            var joDic = jo.ParseClass();
-            var joDicChildren = joDic["Children"].ParseArray();
-            var joChild = jo["Children"][0].Parse<Data>();
-            var qo = SerEx.ParseQn(qn1);
+            UnparsedItem jo = SerEx.UnparsedJson(json);
+            Dictionary<string, UnparsedItem> joDic = jo.ParseClass();
+            UnparsedItem[] joDicChildren = joDic["Children"].ParseArray();
+            Data joChild = jo["Children"][0].Parse<Data>();
+            var qo = SerEx.UnparsedQn(qn1);
             var qoDic = qo.ParseClass();
 
             // TODO: test decode of sample JSON from other sources
