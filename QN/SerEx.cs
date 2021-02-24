@@ -211,7 +211,7 @@ namespace QN
         public static readonly Dictionary<object, string> ComplexOverride = new Dictionary<object, string>();
 
         static string encodeInner(object data, int inDepth, HashSet<object> cyclesTraceList,
-            NotationConfig notationCfg = null, Dictionary<string, object> _forceAddFields = null)
+            NotationConfig notationCfg = null, Dictionary<string, object> forceAddFields = null)
         {
             if (notationCfg == null) notationCfg = NotationConfig.Qn;
             if (inDepth >= notationCfg.MaxDepth) {
@@ -313,11 +313,11 @@ namespace QN
                         // what about multi dimensional? don't support, don't do it.
                         var item = array.GetValue(i);
                         if (i > 0) sb.Append(',');
-                        Dictionary<string, object> forceAddFields = null;
+                        Dictionary<string, object> lineFaf = null;
                         if (item!=null && elT!=typeof(string) && elT.IsClass && elT != item?.GetType()) {
-                            forceAddFields = new Dictionary<string, object> {{"_type", item.GetType().Name}};
+                            lineFaf = new Dictionary<string, object> {{"_type", item.GetType().Name}};
                         }
-                        sb.Append(encodeInner(item, inDepth + 1, cyclesTraceList, notationCfg, forceAddFields));
+                        sb.Append(encodeInner(item, inDepth + 1, cyclesTraceList, notationCfg, lineFaf));
                     }
 
                     sb.Append(notationCfg.CloseArray);
@@ -338,8 +338,8 @@ namespace QN
                     doLog("too many fields and properties!", 10);
                     return notationCfg.NullStr;
                 }
-                if (_forceAddFields!=null)
-                    foreach (var fPair in _forceAddFields) {
+                if (forceAddFields!=null)
+                    foreach (var fPair in forceAddFields) {
                         var fn = fPair.Key;
                         var fv = fPair.Value;
                         if (!firstV) sb.Append(',');
@@ -579,7 +579,11 @@ namespace QN
                             }
                         continue;
                     }
-                    if (resultRecord == null) return new UnparsedItem {Config = notationCfg, RawText = encoded};
+
+                    if (resultRecord == null) {
+                        doLog("Failed to create type " + t.Name + " in array", 15);
+                        return null;//new UnparsedItem {Config = notationCfg, RawText = encoded};
+                    }
                     var fi = t.GetField(fieldName);
                     var pi = t.GetProperty(fieldName);
                     var ft = fi == null ? pi == null ? null : pi.PropertyType : fi.FieldType;
