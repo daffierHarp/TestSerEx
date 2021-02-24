@@ -98,9 +98,18 @@ namespace QN
             reader.Close();
             return result;
         }
+        /// <summary>
+        /// Set Verify-No-Cyclical-Reference to false to improve encoding performance
+        /// </summary>
+        public static bool VerifyNoCyclicalReference = true;
+        /// <summary>
+        /// When verifying cycles, check for reference to parent owner of instance only. This reduces memory consumption - however does not check
+        /// for sibling based cycles
+        /// </summary>
+        public static bool CyclicalVerificationParentOnly = true;
 
         // create QuickServer complex data object notation
-        public static string ToNotation<T>(this T item, NotationConfig notationCfg) => encodeInner(item, 0, new HashSet<object>(), notationCfg);
+        public static string ToNotation<T>(this T item, NotationConfig notationCfg) => encodeInner(item, 0, VerifyNoCyclicalReference ? new HashSet<object>() : null, notationCfg);
         public static T FromQn<T>(string qn, bool tryQuotes = false) => (T) decodeInner(qn, typeof(T), NotationConfig.Qn, tryQuotes);
         public static T FromText<T>(string txt, NotationConfig notationCfg, bool tryQuotes = false) => (T) decodeInner(txt, typeof(T), notationCfg, tryQuotes);
         public static object FromText(string txt, NotationConfig notationCfg, Type t, bool tryQuotes = false) => decodeInner(txt, t, notationCfg, tryQuotes);
@@ -212,12 +221,12 @@ namespace QN
 
             if (data != null && data.GetType().IsClass && data.GetType()!=typeof(string)) {
                 if (ComplexOverride.ContainsKey(data)) return ComplexOverride[data];
-                if (cyclesTraceList.Contains(data)) {
+                if (cyclesTraceList!=null && cyclesTraceList.Contains(data)) {
                     doLog("complex data cycle found", 10);
                     return notationCfg.NullStr;
                 }
 
-                cyclesTraceList.Add(data);
+                cyclesTraceList?.Add(data);
             }
 
             try {
@@ -363,7 +372,7 @@ namespace QN
                 sb.Append(notationCfg.CloseRecord);
                 return sb.ToString();
             } finally {
-                if (data != null && data.GetType().IsClass && cyclesTraceList.Contains(data))
+                if (CyclicalVerificationParentOnly && cyclesTraceList!=null && data != null && data.GetType().IsClass && cyclesTraceList.Contains(data))
                     cyclesTraceList.Remove(data);
             }
         }

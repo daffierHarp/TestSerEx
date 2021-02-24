@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Xml.Serialization;
 using QN;
 using static System.Console;
@@ -31,6 +32,13 @@ namespace TestSerEx
     {
         public Dictionary<string, int> D; // not supported by XML
 
+    }
+
+    public class CyclicalData
+    {
+        public CyclicalData Parent, Next;
+        public List<CyclicalData> Children;
+        public byte[] Buffer;
     }
     
     class Program
@@ -125,7 +133,7 @@ namespace TestSerEx
             var empty = SerEx.ReadBlock(r, NotationConfig.Json);
             
 
-            // test QnObject decoding
+            // test unparsed decoding
             UnparsedItem jo = SerEx.UnparsedJson(json);
             Dictionary<string, UnparsedItem> joDic = jo.ParseClass();
             UnparsedItem[] joDicChildren = joDic["Children"].ParseArray();
@@ -136,6 +144,34 @@ namespace TestSerEx
             // TODO: test decode of sample JSON from other sources
             const string sampleJson1 = @"
 ";
+
+            // other:
+            WriteLine($"SerEx.ToJson<string>(null)={SerEx.ToJson<string>(null)}");
+            WriteLine($"new Data {{}}.ToJson()={new Data {}.ToJson()}");
+
+            SerEx.VerifyNoCyclicalReference = false;
+            var listOfData = new List<CyclicalData>();
+            for (int i = 0; i < 50; i++) listOfData.Add( new CyclicalData {Buffer = getRandomBytes()});
+            WriteLine("random data encoding to QN, no cyclical reference check:");
+            WriteLine(listOfData.ToQn()/*.Tabify()*/);
+            SerEx.VerifyNoCyclicalReference = true;
+            SerEx.CyclicalVerificationParentOnly = false;
+            listOfData[0].Children = listOfData.Skip(1).Take(49).ToList();
+            listOfData[1].Parent = listOfData[0];
+            listOfData[1].Next = listOfData[2];
+            WriteLine(listOfData.ToQn());
+
         }
+
+        static readonly Random _rnd = new Random();
+        static byte[] getRandomBytes()
+        {
+            int l = _rnd.Next(40);
+            if (l == 0) return null;
+            var r = new byte[l];
+            _rnd.NextBytes(r);
+            return r;
+        }
+
     }
 }
