@@ -211,7 +211,7 @@ namespace QN
         public static readonly Dictionary<object, string> ComplexOverride = new Dictionary<object, string>();
 
         static string encodeInner(object data, int inDepth, HashSet<object> cyclesTraceList,
-            NotationConfig notationCfg = null)
+            NotationConfig notationCfg = null, Dictionary<string, object> _forceAddFields = null)
         {
             if (notationCfg == null) notationCfg = NotationConfig.Qn;
             if (inDepth >= notationCfg.MaxDepth) {
@@ -308,11 +308,16 @@ namespace QN
 
                 if (data is Array array) {
                     sb.Append(notationCfg.OpenArray);
+                    var elT = array.GetType().GetElementType();
                     for (var i = 0; i < array.Length; i++) {
                         // what about multi dimensional? don't support, don't do it.
                         var item = array.GetValue(i);
                         if (i > 0) sb.Append(',');
-                        sb.Append(encodeInner(item, inDepth + 1, cyclesTraceList, notationCfg));
+                        Dictionary<string, object> forceAddFields = null;
+                        if (item!=null && elT!=typeof(string) && elT.IsClass && elT != item?.GetType()) {
+                            forceAddFields = new Dictionary<string, object> {{"_type", item.GetType().Name}};
+                        }
+                        sb.Append(encodeInner(item, inDepth + 1, cyclesTraceList, notationCfg, forceAddFields));
                     }
 
                     sb.Append(notationCfg.CloseArray);
@@ -325,31 +330,40 @@ namespace QN
                 }
 
                 sb.Append(notationCfg.OpenRecord);
+
                 var fields = t.GetFields(BindingFlags.Instance | BindingFlags.Public);
                 var props = t.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                var firstV = true;
                 if (fields.Length + props.Length > notationCfg.FieldsLimit) {
                     doLog("too many fields and properties!", 10);
                     return notationCfg.NullStr;
                 }
-
-                var firstV = true;
+                if (_forceAddFields!=null)
+                    foreach (var fPair in _forceAddFields) {
+                        var fn = fPair.Key;
+                        var fv = fPair.Value;
+                        if (!firstV) sb.Append(',');
+                        else firstV = false;
+                        if (notationCfg.FieldNameInQuotes) sb.Append(notationCfg.Quote);
+                        sb.Append(fn);
+                        if (notationCfg.FieldNameInQuotes) sb.Append(notationCfg.Quote);
+                        sb.Append(notationCfg.FieldSep);
+                        sb.Append(encodeInner(fv, inDepth + 1, cyclesTraceList, notationCfg));
+                    }
                 foreach (var fi in fields) {
                     var v = fi.GetValue(data);
                     if (fi.hasAttr<NonSerializedAttribute>() || fi.hasAttr<XmlIgnoreAttribute>()) continue;
                     if (fi.hasAttr<DefaultValueAttribute>()) {
                         if (v == fi.getAttr<DefaultValueAttribute>().Value) continue;
                     } else if (testDefault(v)) continue;
-                    if (!firstV)
-                        sb.Append(',');
-                    else
-                        firstV = false;
+                    if (!firstV) sb.Append(',');
+                    else firstV = false;
                     if (notationCfg.FieldNameInQuotes) sb.Append(notationCfg.Quote);
                     sb.Append(fi.Name);
                     if (notationCfg.FieldNameInQuotes) sb.Append(notationCfg.Quote);
                     sb.Append(notationCfg.FieldSep);
                     sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg));
                 }
-
                 foreach (var pi in props) {
                     if (pi.IsSpecialName || !pi.CanRead || !pi.CanWrite || pi.GetIndexParameters().Length > 0)
                         continue;
@@ -538,7 +552,7 @@ namespace QN
                 helper.SkipPhrase("new ");
             if (notationCfg.AddClassName && char.IsLetter(helper.Current)) helper.SkipToAny($" {notationCfg.OpenRecord}{notationCfg.OpenArray}{notationCfg.OpenDictionary}");
             if (encoded.StartsWith(notationCfg.OpenRecord)) {
-                var resultRecord = Activator.CreateInstance(t);
+                object resultRecord = t.IsAbstract || t.IsInterface ? null : Activator.CreateInstance(t);
                 helper.SkipOne();
 
                 // record
@@ -549,6 +563,23 @@ namespace QN
                     if (notationCfg.FieldNameInQuotes)
                         fieldName = fieldName.Trim('\"', '\'');
                     helper.SkipWhiteSpaces();
+                    if (fieldName == "_type") {
+                        var typeName = decodeQnString(helper, notationCfg);
+                        helper.SkipWhiteSpaces();
+                        if (helper.Current == ',') helper.SkipOne();
+                        helper.SkipWhiteSpaces();
+
+                        // create instance
+                        var xmlIncludeAttrArr = t.GetCustomAttributes<XmlIncludeAttribute>();
+                        foreach(var item in xmlIncludeAttrArr)
+                            if (item.Type.Name == typeName) {
+                                t = item.Type;
+                                resultRecord = Activator.CreateInstance(t);
+                                break;
+                            }
+                        continue;
+                    }
+                    if (resultRecord == null) return new UnparsedItem {Config = notationCfg, RawText = encoded};
                     var fi = t.GetField(fieldName);
                     var pi = t.GetProperty(fieldName);
                     var ft = fi == null ? pi == null ? null : pi.PropertyType : fi.FieldType;

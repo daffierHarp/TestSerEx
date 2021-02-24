@@ -40,6 +40,19 @@ namespace TestSerEx
         public List<CyclicalData> Children;
         public byte[] Buffer;
     }
+    [XmlInclude(typeof(LineTypeFromA1)), XmlInclude(typeof(LineTypeFromA2))]
+    class LineTypeA
+    {
+        public string Str;
+    }
+    class LineTypeFromA1 : LineTypeA
+    {
+        public int X;
+    }
+    class LineTypeFromA2: LineTypeA
+    {
+        public float F;
+    }
     
     class Program
     {
@@ -161,6 +174,21 @@ namespace TestSerEx
             listOfData[1].Next = listOfData[2];
             WriteLine(listOfData.ToQn());
 
+            // test array of inherited types
+            var inArr = new LineTypeA[] {
+                new LineTypeA() {Str = "same type"},
+                new LineTypeFromA1 {Str = "not a", X = 5},
+                new LineTypeFromA2 {Str = "not b", F = 1.7f}
+            };
+            WriteLine("Going to encode array with inheritance lines");
+            var qnInArr = inArr.ToQn();
+            WriteLine("QN:\t\t" + qnInArr);
+            var jsonInArr = inArr.ToJson();
+            WriteLine("Json:\t\t" + jsonInArr);
+            var inArr1 = SerEx.FromQn<LineTypeA[]>(qnInArr);
+            var inArr2 = SerEx.FromJson<LineTypeA[]>(jsonInArr);
+            WriteLine("clone over qn:\t\t"+inArr1.ToQn());
+            WriteLine("clone over json:\t\t"+inArr1.ToJson());
         }
 
         static readonly Random _rnd = new Random();
