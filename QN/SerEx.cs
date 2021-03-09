@@ -44,8 +44,9 @@ namespace QN
         const string XmlInstanceSchemeNamespaceXSD = "xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"";
 
         // this version either makes a minimal text, or the non-minimal one is well-formed document, and the xml line has UTF8 encoding
-        public static string ToXml<T>(this T item, bool minimal, bool removeNamespace = true, bool newLineEntitize = true)
+        public static string ToXml<T>(this T item, bool minimal, bool removeNamespace = true, bool newLineEntitize = true, bool scanXsiDuplicates = true)
         {
+            if (scanXsiDuplicates) doScanXsiDuplicates(item);
             var ser = new XmlSerializer(typeof(T));
             var sb = new StringBuilder();
             var stream = new StringWriter(sb);
@@ -67,7 +68,58 @@ namespace QN
                 sb.Replace(" " + XmlInstanceSchemeNamespaceXSI, "");
                 sb.Replace(" " + XmlInstanceSchemeNamespaceXSD, "");
             }
+
+            
             return sb.ToString();
+        }
+
+        static void doScanXsiDuplicates<T>(T item) { __doScanXsiDupInner(item, typeof(T),0,new HashSet<object>()); }
+        static void __doScanXsiDupInner(object item, Type t, int depth, HashSet<object> dupl) {
+            if (t.IsEnum || t.IsPrimitive || item == null || t==typeof(string) || depth>100) return;
+            if (dupl.Contains(item)) {
+                doLog("Cyclical data found", 15);
+                return;
+            }
+            dupl.Add(item);
+            if (t.IsArray) {
+                var arr = (Array) item;
+                var elT = t.GetElementType();
+                foreach (object o in arr)
+                    __doScanXsiDupInner(o, elT, depth+1, dupl);
+                return;
+            }
+            if (typeof(IList).IsAssignableFrom(t)) {
+                var list = (IList) item;
+                var iT = t.GetGenericArguments()[0];
+                foreach (object o in list)
+                    __doScanXsiDupInner(o, iT, depth+1, dupl);
+                return;
+            }
+            foreach (var f in t.GetFields(BindingFlags.Instance | BindingFlags.Public)) {
+                if (f.IsSpecialName || !f.FieldType.IsClass || f.hasAttr<XmlIgnoreAttribute>()) continue;
+                var v = f.GetValue(item);
+                __doScanXsiDupInner(v, f.FieldType, depth+1, dupl);
+            }
+            foreach (var p in t.GetProperties(BindingFlags.Instance | BindingFlags.Public)) {
+                if (p.IsSpecialName || !p.PropertyType.IsClass || p.hasAttr<XmlIgnoreAttribute>() || !p.CanRead || !p.CanWrite) continue;
+                var v = p.GetValue(item);
+                __doScanXsiDupInner(v, p.PropertyType, depth+1, dupl);
+            }
+            var anyAttrFld = t.GetField("AnyAttributes"); // notice, this can actually be any field name that has the attribute, either change this method or maintain the naming convention
+            if (anyAttrFld == null || !anyAttrFld.hasAttr<XmlAnyAttributeAttribute>()) return;
+            var extraXmlAttr = (XmlAttribute[])anyAttrFld.GetValue(item);
+            if (extraXmlAttr == null || extraXmlAttr.Length <= 0 || extraXmlAttr.All(a => a.Name != "xsi:type")) return;
+            if (extraXmlAttr.Length == 1) {
+                anyAttrFld.SetValue(item, null);
+                return;
+            }
+            var newV = new XmlAttribute[extraXmlAttr.Length - 1];
+            for (int i = 0, j = 0; i < extraXmlAttr.Length; i++) {
+                if (extraXmlAttr[i].Name == "xsi:type") continue;
+                newV[j] = extraXmlAttr[i];
+                j++;
+            }
+            anyAttrFld.SetValue(item, newV);
         }
 
         public static T FromXml<T>(string xml)
@@ -78,21 +130,25 @@ namespace QN
             bool missingXSD = xml.IndexOf(XmlInstanceSchemeNamespaceXSD, StringComparison.Ordinal) < 0;
 
             if (missingXSI || missingXSD) {
-                var dataStart = string.Format("<{0}", typeof(T).Name);
+                // ReSharper disable once PossibleNullReferenceException
+                var typeName = typeof(T).IsArray? "ArrayOf" + typeof(T).GetElementType().Name : typeof(T).Name;
+                var dataStart = string.Format("<{0}", typeName);
                 int startIdx = xml.IndexOf(dataStart, StringComparison.Ordinal);
+                
                 xml = xml.Substring(0, startIdx + dataStart.Length) +
-                      (missingXSI ? (" " + XmlInstanceSchemeNamespaceXSI) : "") +
-                      (missingXSD ? (" " + XmlInstanceSchemeNamespaceXSD) : "") +
-                      " " + xml.Substring(startIdx + dataStart.Length);
-            }
+                       (missingXSI ? (" " + XmlInstanceSchemeNamespaceXSI) : "") +
+                       (missingXSD ? (" " + XmlInstanceSchemeNamespaceXSD) : "") +
+                       " " + xml.Substring(startIdx + dataStart.Length);
+}
             var ser = new XmlSerializer(typeof(T));
             var reader = new StringReader(xml);
             var result = (T) ser.Deserialize(reader);
             reader.Close();
             return result;
         }
-        public static void SaveXml<T>(this T item, string path)
+        public static void SaveXml<T>(this T item, string path, bool scanXsiDuplicates = true)
         {
+            if (scanXsiDuplicates) doScanXsiDuplicates(item);
             var ser = new XmlSerializer(typeof(T));
             // ReSharper disable once ConvertToUsingDeclaration
             using (var w = new StreamWriter(path)) {

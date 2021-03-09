@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Xml;
 using System.Xml.Serialization;
 using QN;
 using static System.Console;
@@ -40,16 +41,29 @@ namespace TestSerEx
         public List<CyclicalData> Children;
         public byte[] Buffer;
     }
+
+    public class OwnerOfLineType
+    {
+        public LineTypeA[] Arr;
+    }
     [XmlInclude(typeof(LineTypeFromA1)), XmlInclude(typeof(LineTypeFromA2))]
-    class LineTypeA
+    public class LineTypeA
     {
         public string Str;
+        // avoid crashes when future instances of class change
+        // ReSharper disable UnusedMember.Global
+        [XmlAnyAttribute,NonSerialized]
+        public XmlAttribute[] AnyAttributes;
+
+        [XmlAnyElement,NonSerialized]
+        public XmlElement[] AnyElements;
+        // ReSharper restore UnusedMember.Global
     }
-    class LineTypeFromA1 : LineTypeA
+    public class LineTypeFromA1 : LineTypeA
     {
         public int X;
     }
-    class LineTypeFromA2: LineTypeA
+    public class LineTypeFromA2: LineTypeA
     {
         public float F;
     }
@@ -189,6 +203,18 @@ namespace TestSerEx
             var inArr2 = SerEx.FromJson<LineTypeA[]>(jsonInArr);
             WriteLine("clone over qn:\t\t"+inArr1.ToQn());
             WriteLine("clone over json:\t\t"+inArr2.ToJson());
+
+            // test xsi:type issue work around
+            var xmlInArr = inArr.ToXml(true, scanXsiDuplicates: false);
+            var inArrFromXml = SerEx.FromXml<LineTypeA[]>(xmlInArr);
+            try {
+                var xmlInArr2 = inArrFromXml.ToXml(true, scanXsiDuplicates: false);
+                var inArrFromXml2 = SerEx.FromXml<LineTypeA[]>(xmlInArr2);
+            } catch { // expected to crash here
+            }
+            
+            var xmlInArr3 = inArrFromXml.ToXml(true, scanXsiDuplicates: true); // expected to fix issue here
+            var inArrFromXml3 = SerEx.FromXml<LineTypeA[]>(xmlInArr3);
         }
 
         static readonly Random _rnd = new Random();
