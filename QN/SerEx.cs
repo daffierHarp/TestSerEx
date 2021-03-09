@@ -40,7 +40,9 @@ namespace QN
             return sb.ToString();
         }
 
-        const string XmlInstanceSchemeNamespace = "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"";
+        const string XmlInstanceSchemeNamespaceXSI = "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"";
+        const string XmlInstanceSchemeNamespaceXSD = "xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"";
+
         // this version either makes a minimal text, or the non-minimal one is well-formed document, and the xml line has UTF8 encoding
         public static string ToXml<T>(this T item, bool minimal, bool removeNamespace = true, bool newLineEntitize = true)
         {
@@ -61,8 +63,10 @@ namespace QN
             }
 
             stream.Flush();
-            if (removeNamespace)
-                sb.Replace(" "+XmlInstanceSchemeNamespace, "");
+            if (removeNamespace) {
+                sb.Replace(" " + XmlInstanceSchemeNamespaceXSI, "");
+                sb.Replace(" " + XmlInstanceSchemeNamespaceXSD, "");
+            }
             return sb.ToString();
         }
 
@@ -70,11 +74,16 @@ namespace QN
         {
             if (xml == null)
                 return default(T);
-            if (xml.IndexOf(XmlInstanceSchemeNamespace, StringComparison.Ordinal) < 0) {
-                var dataStart = $"<{typeof(T).Name}";
+            bool missingXSI = xml.IndexOf(XmlInstanceSchemeNamespaceXSI, StringComparison.Ordinal) < 0;
+            bool missingXSD = xml.IndexOf(XmlInstanceSchemeNamespaceXSD, StringComparison.Ordinal) < 0;
+
+            if (missingXSI || missingXSD) {
+                var dataStart = string.Format("<{0}", typeof(T).Name);
                 int startIdx = xml.IndexOf(dataStart, StringComparison.Ordinal);
-                xml = xml.Substring(0, startIdx + dataStart.Length) + " " + XmlInstanceSchemeNamespace +
-                      xml.Substring(startIdx + dataStart.Length);
+                xml = xml.Substring(0, startIdx + dataStart.Length) +
+                      (missingXSI ? (" " + XmlInstanceSchemeNamespaceXSI) : "") +
+                      (missingXSD ? (" " + XmlInstanceSchemeNamespaceXSD) : "") +
+                      " " + xml.Substring(startIdx + dataStart.Length);
             }
             var ser = new XmlSerializer(typeof(T));
             var reader = new StringReader(xml);

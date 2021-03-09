@@ -188,7 +188,7 @@ namespace TestSerEx
             var inArr1 = SerEx.FromQn<LineTypeA[]>(qnInArr);
             var inArr2 = SerEx.FromJson<LineTypeA[]>(jsonInArr);
             WriteLine("clone over qn:\t\t"+inArr1.ToQn());
-            WriteLine("clone over json:\t\t"+inArr1.ToJson());
+            WriteLine("clone over json:\t\t"+inArr2.ToJson());
         }
 
         static readonly Random _rnd = new Random();
