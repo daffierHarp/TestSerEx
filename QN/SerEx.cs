@@ -173,7 +173,6 @@ namespace QN
         /// </summary>
         public static bool CyclicalVerificationParentOnly = true;
 
-        // create QuickServer complex data object notation
         public static string ToNotation<T>(this T item, NotationConfig notationCfg) => encodeInner(item, 0, VerifyNoCyclicalReference ? new HashSet<object>() : null, notationCfg);
         public static T FromQn<T>(string qn, bool tryQuotes = false) => (T) decodeInner(qn, typeof(T), NotationConfig.Qn, tryQuotes);
         public static T FromText<T>(string txt, NotationConfig notationCfg, bool tryQuotes = false) => (T) decodeInner(txt, typeof(T), notationCfg, tryQuotes);
@@ -191,7 +190,6 @@ namespace QN
             if (notationCfg == null) notationCfg = NotationConfig.Qn;
             var blockStack = new Stack<char>();
             var inStr = false;
-            //blockStack.Push(',');
             var openChars = $"{notationCfg.OpenArray}{notationCfg.OpenRecord}{notationCfg.OpenDictionary}";
             var whites = " \t\r\n";
             var helper = new StreamReaderHelper(r);

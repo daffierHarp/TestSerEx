@@ -114,7 +114,7 @@ namespace TestSerEx
             WriteLine($"clone2={clone2.ToXml(true)}");
             WriteLine($"data1.SomeTextNode==clone2.SomeTextNode?{data1.SomeTextNode==clone2.SomeTextNode}");
 
-            WriteLine("\r\nQN: (FAAC/MILO quick-server complex data notation)");
+            WriteLine("\r\nQN: (FAAC/MILO quick-server object notation)");
             data1.Children[0].Parent = data1; // test circular test on QN
 
             var data2 = new Data() {SomeTextNode = data1.SomeTextNode};
