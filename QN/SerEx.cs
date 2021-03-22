@@ -30,7 +30,7 @@ namespace QN
         // the problem with this version is that it includes XML line, and specifies the encoding as Unicode, though it might
         // be later encoded as UTF8 binary data. Another issue is that new-lines are not entitized by default
         // ReSharper restore CommentTypo
-        public static string ToXml<T>(this T item)
+        public static string ToFullXml<T>(this T item)
         {
             var ser = new XmlSerializer(typeof(T));
             var sb = new StringBuilder();
@@ -44,7 +44,7 @@ namespace QN
         const string XmlInstanceSchemeNamespaceXSD = "xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"";
 
         // this version either makes a minimal text, or the non-minimal one is well-formed document, and the xml line has UTF8 encoding
-        public static string ToXml<T>(this T item, bool minimal, bool removeNamespace = true, bool newLineEntitize = true, bool scanXsiDuplicates = true)
+        public static string ToXml<T>(this T item, bool minimal = true, bool removeNamespace = true, bool newLineEntitize = true, bool scanXsiDuplicates = true)
         {
             if (scanXsiDuplicates) doScanXsiDuplicates(item);
             var ser = new XmlSerializer(typeof(T));

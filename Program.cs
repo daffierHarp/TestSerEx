@@ -102,7 +102,7 @@ namespace TestSerEx
             // this will throw an exception when encoding as xml
             //data1.Children[0].Parent = i1;
             WriteLine("full xml:");
-            WriteLine($"data1=\r\n{data1.ToXml()}\r\n");
+            WriteLine($"data1=\r\n{data1.ToFullXml()}\r\n");
             WriteLine("minimal xml, with schema namespace:");
             WriteLine($"data1={data1.ToXml(true,false)}");
             var clone1 = SerEx.FromXml<Data>(data1.ToXml(true, false));

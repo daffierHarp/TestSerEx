@@ -57,7 +57,7 @@ namespace QnUnitMsTest
         [TestMethod]
         public void TestFullXml()
         {
-            var fullXml = _data1.ToXml();
+            var fullXml = _data1.ToFullXml();
             Assert.IsInstanceOfType(fullXml, typeof(string));
             Assert.IsNotNull(fullXml);
             Debug.WriteLine(fullXml);
