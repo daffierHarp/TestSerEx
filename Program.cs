@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Xml;
@@ -67,7 +68,11 @@ namespace TestSerEx
     {
         public float F;
     }
-    
+    public class NullAbleFieldTest
+    {
+        public int? I1;
+        [DefaultValue(0)]public int? I2;
+    }
     class Program
     {
         static bool eq(DateTime d1, DateTime d2, bool withMilis = false, bool withSeconds = false)
@@ -215,6 +220,12 @@ namespace TestSerEx
             
             var xmlInArr3 = inArrFromXml.ToXml(true, scanXsiDuplicates: true); // expected to fix issue here
             var inArrFromXml3 = SerEx.FromXml<LineTypeA[]>(xmlInArr3);
+
+            var nullableTest = new NullAbleFieldTest { I1 = 5 };
+            var nullableTestJson = nullableTest.ToJson();
+            WriteLine("nullable fields json:" + nullableTestJson);
+            var nullableTestClone = SerEx.FromJson<NullAbleFieldTest>(nullableTestJson);
+            WriteLine("nullable fields json clone:" + nullableTestClone.ToJson());
         }
 
         static readonly Random _rnd = new Random();

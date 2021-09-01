@@ -251,6 +251,8 @@ namespace QN
             return helper.TextSoFar;
         }
         #region inner implementation
+        static bool isNullable(this Type type) { return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>); }
+        static Type getNullableUnderlyingType(this Type type) { return Nullable.GetUnderlyingType(type); }
 
         static bool hasAttr<T>(this MemberInfo mi) where T:Attribute
         {
@@ -499,11 +501,16 @@ namespace QN
         // decode with configuration, supports json
         static object decodeInner(Slice encoded, Type t, NotationConfig notationCfg, bool tryQuotes = false)
         {
-            if (encoded == notationCfg.NullStr || encoded == notationCfg.NullStr.Trim(notationCfg.Quote)) return null;
+            if (encoded == notationCfg.NullStr) return null;
             if (t == null || t == typeof(object) || t == typeof(UnparsedItem)) return new UnparsedItem {Config = notationCfg, RawText = encoded};
             if (t.IsInterface) {
                 doLog("Decoding data as interface not supported!", 10);
                 return null;
+            }
+            // support null-able
+            if (t.isNullable()) {
+                if (string.IsNullOrWhiteSpace(encoded) || encoded == notationCfg.NullStr) return null;
+                t = t.getNullableUnderlyingType(); Debug.Assert(t != null);
             }
 
             var helper = new ParseHelper(encoded);
