@@ -75,7 +75,14 @@ namespace TestSerEx
     }
     public class ObjectWithDic
     {
-        public Dictionary<string, string> D = new Dictionary<string, string>();
+        [XmlIgnore]public Dictionary<string, string> D = new Dictionary<string, string>();
+
+        [EditorBrowsable(EditorBrowsableState.Never), XmlElement("D")]
+        public string __D
+        {
+            get => D.ToJson();
+            set => D = SerEx.FromJson<Dictionary<string, string>>(value);
+        }
 
     }
     class Program
@@ -237,6 +244,12 @@ namespace TestSerEx
             WriteLine("Object with dictionary json:\t\t" + oWithDJson);
             var oWithDClone = SerEx.FromJson<ObjectWithDic>(oWithDJson);
             WriteLine("Object with dictionary json clone:\t" + oWithDClone.ToJson());
+            
+            var oWithDXml = oWithD.ToXml();
+            WriteLine("Object with dictionary xml:\t\t" + oWithDXml);
+            var oWithDXmlClone = SerEx.FromXml<ObjectWithDic>(oWithDXml);
+            WriteLine("Object with dictionary xml clone:\t" + oWithDXmlClone.ToXml());
+            
         }
 
         static readonly Random _rnd = new Random();

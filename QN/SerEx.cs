@@ -101,7 +101,7 @@ namespace QN
                 __doScanXsiDupInner(v, f.FieldType, depth+1, dupl);
             }
             foreach (var p in t.GetProperties(BindingFlags.Instance | BindingFlags.Public)) {
-                if (p.IsSpecialName || !p.PropertyType.IsClass || p.hasAttr<XmlIgnoreAttribute>() || !p.CanRead || !p.CanWrite) continue;
+                if (p.IsSpecialName || !p.PropertyType.IsClass || p.hasAttr<XmlIgnoreAttribute>() || !p.CanRead || !p.CanWrite || p.Name == "Item") continue;
                 var v = p.GetValue(item);
                 __doScanXsiDupInner(v, p.PropertyType, depth+1, dupl);
             }
