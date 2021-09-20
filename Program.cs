@@ -73,6 +73,11 @@ namespace TestSerEx
         public int? I1;
         [DefaultValue(0)]public int? I2;
     }
+    public class ObjectWithDic
+    {
+        public Dictionary<string, string> D = new Dictionary<string, string>();
+
+    }
     class Program
     {
         static bool eq(DateTime d1, DateTime d2, bool withMilis = false, bool withSeconds = false)
@@ -226,6 +231,12 @@ namespace TestSerEx
             WriteLine("nullable fields json:" + nullableTestJson);
             var nullableTestClone = SerEx.FromJson<NullAbleFieldTest>(nullableTestJson);
             WriteLine("nullable fields json clone:" + nullableTestClone.ToJson());
+
+            var oWithD = new ObjectWithDic { D = new Dictionary<string, string> { { "X", "value of X" }, { "Y", "value of Y" } } };
+            var oWithDJson = oWithD.ToJson();
+            WriteLine("Object with dictionary json:\t\t" + oWithDJson);
+            var oWithDClone = SerEx.FromJson<ObjectWithDic>(oWithDJson);
+            WriteLine("Object with dictionary json clone:\t" + oWithDClone.ToJson());
         }
 
         static readonly Random _rnd = new Random();
