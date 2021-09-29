@@ -84,6 +84,14 @@ namespace TestSerEx
             set => D = SerEx.FromJson<Dictionary<string, string>>(value);
         }
 
+        [XmlIgnore] public Dictionary<LineTypeA, LineTypeA> D2;
+
+        [EditorBrowsable(EditorBrowsableState.Never), XmlElement("D2")]
+        public string __D2
+        {
+            get => D2.ToJson();
+            set => D2 = SerEx.FromJson<Dictionary<LineTypeA, LineTypeA>>(value);
+        }
     }
     class Program
     {

@@ -340,16 +340,27 @@ namespace QN
                         sb.Append(string.Format(notationCfg.OpenDictionary, t.GetGenericArguments()[0].Name,
                             t.GetGenericArguments()[1].Name));
                     var firstDicV = true;
+                    var kt = t.GenericTypeArguments[0];
+                    var vt = t.GenericTypeArguments[1];
                     foreach (var key in d.Keys) {
                         if (!firstDicV)
                             sb.Append(',');
                         else
                             firstDicV = false;
                         if(!string.IsNullOrWhiteSpace(notationCfg.DictionaryItemOpen)) sb.Append(notationCfg.DictionaryItemOpen);
-                        sb.Append(encodeInner(key, inDepth + 1, cyclesTraceList, notationCfg));
+                        Dictionary<string, object> keyFaf = null;
+                        if (key!=null && kt!=typeof(string) && kt.IsClass && kt != key.GetType()) {
+                            keyFaf = new Dictionary<string, object> {{"_type", key.GetType().Name}};
+                        }
+
+                        sb.Append(encodeInner(key, inDepth + 1, cyclesTraceList, notationCfg, keyFaf));
                         sb.Append(notationCfg.DictionarySep);
                         var v = d[key];
-                        sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg));
+                        Dictionary<string, object> vFaf = null;
+                        if (v!=null && vt!=typeof(string) && vt.IsClass && vt != v.GetType()) {
+                            vFaf = new Dictionary<string, object> {{"_type", v.GetType().Name}};
+                        }
+                        sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, vFaf));
                         if (!string.IsNullOrWhiteSpace(notationCfg.DictionaryItemClose)) sb.Append(notationCfg.DictionaryItemClose);
                     }
 
@@ -427,7 +438,11 @@ namespace QN
                     sb.Append(fi.Name);
                     if (notationCfg.FieldNameInQuotes) sb.Append(notationCfg.Quote);
                     sb.Append(notationCfg.FieldSep);
-                    sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg));
+                    Dictionary<string, object> fFaf = null;
+                    if (v!=null && fi.FieldType!=typeof(string) && fi.FieldType.IsClass && fi.FieldType != v.GetType()) {
+                        fFaf = new Dictionary<string, object> {{"_type", v.GetType().Name}};
+                    }
+                    sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, fFaf));
                 }
                 foreach (var pi in props) {
                     if (pi.IsSpecialName || !pi.CanRead || !pi.CanWrite || pi.GetIndexParameters().Length > 0)
@@ -445,7 +460,11 @@ namespace QN
                     sb.Append(pi.Name);
                     if (notationCfg.FieldNameInQuotes) sb.Append(notationCfg.Quote);
                     sb.Append(notationCfg.FieldSep);
-                    sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg));
+                    Dictionary<string, object> pFaf = null;
+                    if (v!=null && pi.PropertyType!=typeof(string) && pi.PropertyType.IsClass && pi.PropertyType != v.GetType()) {
+                        pFaf = new Dictionary<string, object> {{"_type", v.GetType().Name}};
+                    }
+                    sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, pFaf));
                 }
 
                 sb.Append(notationCfg.CloseRecord);
@@ -499,7 +518,7 @@ namespace QN
         }
 
         // decode with configuration, supports json
-        static object decodeInner(Slice encoded, Type t, NotationConfig notationCfg, bool tryQuotes = false)
+        static object decodeInner(Slice encoded, Type t, NotationConfig notationCfg, bool tryQuotes = false, HashSet<XmlIncludeAttribute> xmlIncludes = null)
         {
             if (encoded == notationCfg.NullStr) return null;
             if (t == null || t == typeof(object) || t == typeof(UnparsedItem)) return new UnparsedItem {Config = notationCfg, RawText = encoded};
@@ -567,6 +586,15 @@ namespace QN
                 return default(DateTime);
             }
 
+            if (t.IsClass) {
+                var tXmlIncludes = t.GetCustomAttributes<XmlIncludeAttribute>().ToArray();
+                if (tXmlIncludes.Length > 0) {
+                    if (xmlIncludes == null) xmlIncludes = new HashSet<XmlIncludeAttribute>();
+                    foreach (var xi in tXmlIncludes)
+                        if (!xmlIncludes.Contains(xi))
+                            xmlIncludes.Add(xi);
+                }
+            }
             if (typeof(IDictionary).IsAssignableFrom(t)) {
                 var closeDic = notationCfg.CloseDictionary;
                 var openDic = notationCfg.OpenDictionary;
@@ -598,7 +626,7 @@ namespace QN
                     else
                         keyPart = helper.ReadToAny($"{notationCfg.DictionarySep}").Trim(' ', '\t', '\r', '\n');
                     // TODO: support dictionary item open/close characters
-                    var key = decodeInner(keyPart, keyType, notationCfg, true);
+                    var key = decodeInner(keyPart, keyType, notationCfg, true, xmlIncludes: xmlIncludes);
                     helper.SkipOne(); // :
                     helper.SkipWhiteSpaces();
                     string vPart;
@@ -609,7 +637,7 @@ namespace QN
                     else
                         vPart = helper.ReadToAny($"{closeDic},");
                     vPart = vPart.Trim(' ', '\t', '\r', '\n');
-                    var v = decodeInner(vPart, valueType, notationCfg, true);
+                    var v = decodeInner(vPart, valueType, notationCfg, true, xmlIncludes: xmlIncludes);
                     dic.Add(key, v);
                     helper.SkipWhiteSpaces();
                     if (helper.Current == ',') helper.SkipOne();
@@ -633,20 +661,20 @@ namespace QN
                     if (notationCfg.FieldNameInQuotes)
                         fieldName = fieldName.Trim('\"', '\'');
                     helper.SkipWhiteSpaces();
-                    if (fieldName == "_type") {
+                    if (fieldName == "_type") { // _type must be the first field of the record otherwise all prior fields will be discarded
                         var typeName = decodeQnString(helper, notationCfg);
                         helper.SkipWhiteSpaces();
                         if (helper.Current == ',') helper.SkipOne();
                         helper.SkipWhiteSpaces();
 
                         // create instance
-                        var xmlIncludeAttrArr = t.GetCustomAttributes<XmlIncludeAttribute>();
-                        foreach(var item in xmlIncludeAttrArr)
-                            if (item.Type.Name == typeName) {
-                                t = item.Type;
-                                resultRecord = Activator.CreateInstance(t);
-                                break;
-                            }
+                        if (xmlIncludes!=null)
+                            foreach(var item in xmlIncludes)
+                                if (item.Type.Name == typeName) {
+                                    t = item.Type;
+                                    resultRecord = Activator.CreateInstance(t);
+                                    break;
+                                }
                         continue;
                     }
 
@@ -664,14 +692,14 @@ namespace QN
                     if (notationCfg.AddClassName && char.IsLetter(helper.Current)) helper.SkipToAny($" {notationCfg.OpenRecord}{notationCfg.OpenArray}{notationCfg.OpenDictionary}");
                     if (helper.Current == notationCfg.OpenRecord || helper.PeekPhrase(notationCfg.OpenDictionary) || helper.PeekPhrase(notationCfg.OpenArray)) {
                         var complex = readQnBlock(helper, notationCfg);
-                        fieldValue = decodeInner(complex, ft, notationCfg);
+                        fieldValue = decodeInner(complex, ft, notationCfg, xmlIncludes: xmlIncludes);
                     } else if (helper.Current == notationCfg.Quote) {
                         fieldValue = decodeQnString(helper, notationCfg);
                         if (ft != typeof(string))
-                            fieldValue = decodeInner((string)fieldValue, ft, notationCfg);
+                            fieldValue = decodeInner((string)fieldValue, ft, notationCfg, xmlIncludes: xmlIncludes);
                     } else {
                         var dataStr = helper.ReadToAny($",{notationCfg.CloseRecord}");
-                        fieldValue = decodeInner(dataStr, ft, notationCfg);
+                        fieldValue = decodeInner(dataStr, ft, notationCfg, xmlIncludes: xmlIncludes);
                     }
                     if (fi != null) fi.SetValue(resultRecord, fieldValue);
                     else if (pi != null)
@@ -728,7 +756,7 @@ namespace QN
                             elPart = "";
                         } else
                             elPart = helper.ReadToAny($",{notationCfg.CloseArray}");
-                        var item = decodeInner(elPart, elT, notationCfg, true);
+                        var item = decodeInner(elPart, elT, notationCfg, true, xmlIncludes: xmlIncludes);
                         list.Add(item);
                     }
 
