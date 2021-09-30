@@ -50,7 +50,7 @@ namespace TestSerEx
     [XmlInclude(typeof(LineTypeFromA1)), XmlInclude(typeof(LineTypeFromA2))]
     public class LineTypeA
     {
-        public string Str;
+        [XmlAttribute] public string Str;
         // avoid crashes when future instances of class change
         // ReSharper disable UnusedMember.Global
         [XmlAnyAttribute,NonSerialized]
@@ -62,35 +62,61 @@ namespace TestSerEx
     }
     public class LineTypeFromA1 : LineTypeA
     {
-        public int X;
+        [XmlAttribute] public int X;
     }
     public class LineTypeFromA2: LineTypeA
     {
-        public float F;
+        [XmlAttribute] public float F;
     }
     public class NullAbleFieldTest
     {
         public int? I1;
         [DefaultValue(0)]public int? I2;
     }
+    public class DictionaryArrayLine<TKey, TValue>
+    {
+        public TKey Key;
+        public TValue Value;
+    }
+    [XmlInclude(typeof(LineTypeFromA1)), XmlInclude(typeof(LineTypeFromA2))]
     public class ObjectWithDic
     {
-        [XmlIgnore]public Dictionary<string, string> D = new Dictionary<string, string>();
+        [XmlIgnore]public Dictionary<string, string> D;
 
         [EditorBrowsable(EditorBrowsableState.Never), XmlElement("D")]
         public string __D
         {
-            get => D.ToJson();
+            get => D == null ? null : D.ToJson();
             set => D = SerEx.FromJson<Dictionary<string, string>>(value);
         }
 
         [XmlIgnore] public Dictionary<LineTypeA, LineTypeA> D2;
-
-        [EditorBrowsable(EditorBrowsableState.Never), XmlElement("D2")]
+        // demonstrate non standard json encoding/decoding
+        [EditorBrowsable(EditorBrowsableState.Never), XmlElement("D2"), DefaultValue(null)]
         public string __D2
         {
-            get => D2.ToJson();
+            get => D2 == null ? null : D2.ToJson();
             set => D2 = SerEx.FromJson<Dictionary<LineTypeA, LineTypeA>>(value);
+        }
+        // demonstrate dictionary serialization to XML, the system KeyPairValue is not XML serialization friendly
+        [XmlIgnore] public Dictionary<LineTypeA, LineTypeA> D3;
+        [DefaultValue(null)]
+        public DictionaryArrayLine<LineTypeA, LineTypeA>[] D3Arr
+        {
+            get => D3?.Select(pair=>new DictionaryArrayLine<LineTypeA, LineTypeA> { Key = pair.Key, Value = pair.Value }).ToArray() ?? null;
+            set {
+                if (value == null) {
+                    D3 = null;
+                    return;
+                }
+                D3 = new Dictionary<LineTypeA, LineTypeA>(value.Select(line=>new KeyValuePair<LineTypeA, LineTypeA>(line.Key,line.Value)));
+            }
+        }
+        // unlike D2, this option produces a valid standard JSON
+        public string D3ArrJSon
+        {
+            get => D3Arr == null ? null: D3Arr.ToJson();
+            set => D3Arr = SerEx.FromJson<DictionaryArrayLine<LineTypeA, LineTypeA>[]>(value);
         }
     }
     class Program
@@ -265,6 +291,24 @@ namespace TestSerEx
             WriteLine("Object with D2 xml:\t\t" + oWithD2Xml);
             var oWithD2XmlClone = SerEx.FromXml<ObjectWithDic>(oWithD2Xml);
             WriteLine("Object with D2 xml clone:\t" + oWithD2XmlClone.ToXml());
+
+            var oWithD3 = new ObjectWithDic
+            {
+                D3 = new Dictionary<LineTypeA, LineTypeA>() { 
+                    { 
+                        new LineTypeA { Str = "str"},
+                        new LineTypeFromA2 { F = 1.2f } 
+                    } ,
+                    {
+                        new LineTypeFromA1 { X = 3 },
+                        new LineTypeFromA1 { X = 4 }
+                    }
+                }
+            };
+            var oWithD3Xml = oWithD3.ToXml();
+            WriteLine("Object with D3 xml:\t\t" + oWithD3Xml);
+            var oWithD3XmlClone = SerEx.FromXml<ObjectWithDic>(oWithD3Xml);
+            WriteLine("Object with D3 xml clone:\t" + oWithD3XmlClone.ToXml());
         }
 
         static readonly Random _rnd = new Random();
