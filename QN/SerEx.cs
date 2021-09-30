@@ -1344,6 +1344,18 @@ namespace QN
             }
         }
         public bool IsString => RawText.GetNextNonWhiteChar(out _) == Config.Quote;
+        public bool IsBool {
+            get {
+                if (Config.BooleanAsLowecase && Config.BooleanInQuotes)
+                    return RawText == $"{Config.Quote}true{Config.Quote}" || RawText == $"{Config.Quote}false{Config.Quote}";
+                if (Config.BooleanAsLowecase)
+                    return RawText == "true" || RawText == "false";
+                if (Config.BooleanInQuotes)
+                    return RawText == $"{Config.Quote}True{Config.Quote}" || RawText == $"{Config.Quote}False{Config.Quote}";
+                return RawText == "True" || RawText == "False";
+            }
+        }
+        public bool IsPrimitive => IsBool || IsString || IsNumber || RawText==Config.NullStr;
         public Dictionary<string, UnparsedItem> ParseClass() => _dic ?? (_dic = IsClass?Parse<Dictionary<string, UnparsedItem>>():new Dictionary<string, UnparsedItem>());
         public bool IsNumber => char.IsDigit(RawText.GetNextNonWhiteChar(out _));
         public UnparsedItem this[string field] =>ParseClass()[field];
@@ -1357,7 +1369,14 @@ namespace QN
                 return a[index];
             }
         }
-
+        public object ParsePrimitive() {
+            if (RawText == Config.NullStr) return null;
+            if (IsBool) return Parse<bool>();
+            if (IsString) return ParseString();
+            if (!IsNumber) throw new Exception("Invalid type");
+            if (RawText.FindChar(".", out int idx) == '.') return ParseFloat();
+            return ParseInt();
+        }
         public int ArrayLength => ParseArray().Length;
 
         /*
