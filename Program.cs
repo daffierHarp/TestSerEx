@@ -257,7 +257,13 @@ namespace TestSerEx
             WriteLine("Object with dictionary xml:\t\t" + oWithDXml);
             var oWithDXmlClone = SerEx.FromXml<ObjectWithDic>(oWithDXml);
             WriteLine("Object with dictionary xml clone:\t" + oWithDXmlClone.ToXml());
-            
+            var oWithD2 = new ObjectWithDic { 
+                D2 = new Dictionary<LineTypeA, LineTypeA>() { { new LineTypeFromA1 { Str = "str" }, new LineTypeFromA2 { F = 1.2f } } }
+            };
+            var oWithD2Xml = oWithD2.ToXml();
+            WriteLine("Object with D2 xml:\t\t" + oWithD2Xml);
+            var oWithD2XmlClone = SerEx.FromXml<ObjectWithDic>(oWithD2Xml);
+            WriteLine("Object with D2 xml clone:\t" + oWithD2XmlClone.ToXml());
         }
 
         static readonly Random _rnd = new Random();
