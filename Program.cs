@@ -260,6 +260,7 @@ namespace TestSerEx
             var oWithD2 = new ObjectWithDic { 
                 D2 = new Dictionary<LineTypeA, LineTypeA>() { { new LineTypeFromA1 { Str = "str" }, new LineTypeFromA2 { F = 1.2f } } }
             };
+            // note: the json produced for D2 doesn't comply with JSON standard. The serializer treats "Dictionary" as a JSON object, the keys are encoded as JSON while the standard demands keys be only strings
             var oWithD2Xml = oWithD2.ToXml();
             WriteLine("Object with D2 xml:\t\t" + oWithD2Xml);
             var oWithD2XmlClone = SerEx.FromXml<ObjectWithDic>(oWithD2Xml);
