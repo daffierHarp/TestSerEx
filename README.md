@@ -120,7 +120,7 @@ When the key type of the dictionary is not a string, SerEx encodes it as if it w
 
 ## JSON encoding as assistance to XML encoding which lacks ability to encode dictionaries
 
-Microsoft's XML encoding lacks the ability to encode dictionaries. In lue a simple design pattern is suggested which encodes Dictionary field as JSON:
+Microsoft's XML encoding lacks the ability to encode dictionaries. In lieu a simple design pattern is suggested which encodes Dictionary field as JSON:
 
 ```cs
     public class ObjectWithDictionary
@@ -137,3 +137,5 @@ Microsoft's XML encoding lacks the ability to encode dictionaries. In lue a simp
 ```
 
 As mentioned above and demonstrated in code at program.cs of this project, the keys and values can be of any type, though to keep compatibility with JSON standard, the keys should be strings only.
+
+In the program.cs various approaches to encoding dictionaries to XML are demonstrated including pure XML with no JSON.
