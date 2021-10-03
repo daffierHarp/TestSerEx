@@ -100,7 +100,7 @@ namespace TestSerEx
         }
         // demonstrate dictionary serialization to XML, the system KeyPairValue is not XML serialization friendly
         [XmlIgnore] public Dictionary<LineTypeA, LineTypeA> D3;
-        [DefaultValue(null)]
+        [DefaultValue(null), XmlArrayItem(ElementName ="Pair")]
         public DictionaryArrayLine<LineTypeA, LineTypeA>[] D3Arr
         {
             get => D3?.Select(pair=>new DictionaryArrayLine<LineTypeA, LineTypeA> { Key = pair.Key, Value = pair.Value }).ToArray() ?? null;
@@ -309,6 +309,14 @@ namespace TestSerEx
             WriteLine("Object with D3 xml:\t\t" + oWithD3Xml);
             var oWithD3XmlClone = SerEx.FromXml<ObjectWithDic>(oWithD3Xml);
             WriteLine("Object with D3 xml clone:\t" + oWithD3XmlClone.ToXml());
+            var tryOWithDCs = oWithD.ToNotation(NotationConfig.CSharpObjectInit);
+            WriteLine("Object with D c# init:\r\n" + tryOWithDCs.Tabify(NotationConfig.Json));
+            var tryDCs = oWithD.D.ToNotation(NotationConfig.CSharpObjectInit);
+            WriteLine("D c# init:\r\n" + tryDCs.Tabify(NotationConfig.Json));
+            var tryOWithD3Cs = oWithD3.ToNotation(NotationConfig.CSharpObjectInit);
+            WriteLine("Object with D3 c# init:\r\n" + tryOWithD3Cs.Tabify(NotationConfig.Json));
+            var tryD3Cs = oWithD3.D3.ToNotation(NotationConfig.CSharpObjectInit);
+            WriteLine("Object D3 c# init:\r\n" + tryD3Cs.Tabify(NotationConfig.Json));
         }
 
         static readonly Random _rnd = new Random();
