@@ -337,8 +337,8 @@ namespace QN
                     if (notationCfg.OpenDictionary.Length == 1 || notationCfg.OpenDictionary.IndexOf('{') < 0)
                         sb.Append(notationCfg.OpenDictionary);
                     else
-                        sb.Append(string.Format(notationCfg.OpenDictionary, t.GetGenericArguments()[0].Name,
-                            t.GetGenericArguments()[1].Name));
+                        sb.Append(string.Format(notationCfg.OpenDictionary, t.GetGenericArguments()[0].GetFriendlyName(),
+                            t.GetGenericArguments()[1].GetFriendlyName()));
                     var firstDicV = true;
                     var kt = t.GenericTypeArguments[0];
                     var vt = t.GenericTypeArguments[1];
@@ -350,7 +350,7 @@ namespace QN
                         if(!string.IsNullOrWhiteSpace(notationCfg.DictionaryItemOpen)) sb.Append(notationCfg.DictionaryItemOpen);
                         Dictionary<string, object> keyFaf = null;
                         if (key!=null && kt!=typeof(string) && kt.IsClass && kt != key.GetType()) {
-                            keyFaf = new Dictionary<string, object> {{"_type", key.GetType().Name}};
+                            keyFaf = new Dictionary<string, object> {{"_type", key.GetType().GetFriendlyName()}};
                         }
 
                         sb.Append(encodeInner(key, inDepth + 1, cyclesTraceList, notationCfg, keyFaf));
@@ -358,7 +358,7 @@ namespace QN
                         var v = d[key];
                         Dictionary<string, object> vFaf = null;
                         if (v!=null && vt!=typeof(string) && vt.IsClass && vt != v.GetType()) {
-                            vFaf = new Dictionary<string, object> {{"_type", v.GetType().Name}};
+                            vFaf = new Dictionary<string, object> {{"_type", v.GetType().GetFriendlyName()}};
                         }
                         sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, vFaf));
                         if (!string.IsNullOrWhiteSpace(notationCfg.DictionaryItemClose)) sb.Append(notationCfg.DictionaryItemClose);
@@ -391,7 +391,7 @@ namespace QN
                         if (i > 0) sb.Append(',');
                         Dictionary<string, object> lineFaf = null;
                         if (item!=null && elT!=typeof(string) && elT.IsClass && elT != item?.GetType()) {
-                            lineFaf = new Dictionary<string, object> {{"_type", item.GetType().Name}};
+                            lineFaf = new Dictionary<string, object> {{"_type", item.GetType().GetFriendlyName()}};
                         }
                         sb.Append(encodeInner(item, inDepth + 1, cyclesTraceList, notationCfg, lineFaf));
                     }
@@ -402,7 +402,7 @@ namespace QN
 
                 if (notationCfg.AddClassName) {
                     if (notationCfg.AddNewKeywordToClassName) sb.Append("new ");
-                    sb.Append(t.Name);
+                    sb.Append(t.GetFriendlyName());
                 }
 
                 sb.Append(notationCfg.OpenRecord);
@@ -440,7 +440,7 @@ namespace QN
                     sb.Append(notationCfg.FieldSep);
                     Dictionary<string, object> fFaf = null;
                     if (v!=null && fi.FieldType!=typeof(string) && fi.FieldType.IsClass && fi.FieldType != v.GetType()) {
-                        fFaf = new Dictionary<string, object> {{"_type", v.GetType().Name}};
+                        fFaf = new Dictionary<string, object> {{"_type", v.GetType().GetFriendlyName()}};
                     }
                     sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, fFaf));
                 }
@@ -462,7 +462,7 @@ namespace QN
                     sb.Append(notationCfg.FieldSep);
                     Dictionary<string, object> pFaf = null;
                     if (v!=null && pi.PropertyType!=typeof(string) && pi.PropertyType.IsClass && pi.PropertyType != v.GetType()) {
-                        pFaf = new Dictionary<string, object> {{"_type", v.GetType().Name}};
+                        pFaf = new Dictionary<string, object> {{"_type", v.GetType().GetFriendlyName()}};
                     }
                     sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, pFaf));
                 }
@@ -670,7 +670,7 @@ namespace QN
                         // create instance
                         if (xmlIncludes!=null)
                             foreach(var item in xmlIncludes)
-                                if (item.Type.Name == typeName) {
+                                if (item.Type.Name == typeName || item.Type.GetFriendlyName()==typeName) {
                                     t = item.Type;
                                     resultRecord = Activator.CreateInstance(t);
                                     break;
@@ -679,7 +679,7 @@ namespace QN
                     }
 
                     if (resultRecord == null) {
-                        doLog("Failed to create type " + t.Name + " in array", 15);
+                        doLog("Failed to create type " + t.GetFriendlyName() + " in array", 15);
                         return null;//new UnparsedItem {Config = notationCfg, RawText = encoded};
                     }
                     var fi = t.GetField(fieldName);
@@ -1039,6 +1039,44 @@ namespace QN
 
         #endregion
 
+        #endregion
+        #region friendly type name
+        // from https://stackoverflow.com/a/41961738/16602474
+        static readonly Dictionary<Type, string> _defaultDictionary = new Dictionary<Type, string> {
+            {typeof(int), "int"},
+            {typeof(uint), "uint"},
+            {typeof(long), "long"},
+            {typeof(ulong), "ulong"},
+            {typeof(short), "short"},
+            {typeof(ushort), "ushort"},
+            {typeof(byte), "byte"},
+            {typeof(sbyte), "sbyte"},
+            {typeof(bool), "bool"},
+            {typeof(float), "float"},
+            {typeof(double), "double"},
+            {typeof(decimal), "decimal"},
+            {typeof(char), "char"},
+            {typeof(string), "string"},
+            {typeof(object), "object"},
+            {typeof(void), "void"}
+        };
+        public static string GetFriendlyName(this Type type, Dictionary<Type, string> translations)
+        {
+            if(translations.ContainsKey(type)) return translations[type];
+            if (type.IsArray) {
+                var rank = type.GetArrayRank();
+                var commas = rank > 1 
+                    ? new string(',', rank - 1)
+                    : "";
+                return GetFriendlyName(type.GetElementType(), translations) + $"[{commas}]";
+            }
+            if(type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
+                return type.GetGenericArguments()[0].GetFriendlyName() + "?";
+            if (type.IsGenericType)
+                return type.Name.Split('`')[0] + "<" + string.Join(", ", type.GetGenericArguments().Select(x => GetFriendlyName(x)).ToArray()) + ">";
+            return type.Name;
+        }
+        public static string GetFriendlyName(this Type type) => type.GetFriendlyName(_defaultDictionary);
         #endregion
     }
 
