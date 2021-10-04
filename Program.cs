@@ -77,6 +77,9 @@ namespace TestSerEx
     {
         public TKey Key;
         public TValue Value;
+        public static implicit operator DictionaryArrayLine<TKey, TValue>(KeyValuePair<TKey, TValue> pair) => new DictionaryArrayLine<TKey, TValue> { Key = pair.Key, Value = pair.Value};
+        public static implicit operator KeyValuePair<TKey, TValue>(DictionaryArrayLine<TKey, TValue> arrLine) => new KeyValuePair<TKey, TValue>  (arrLine.Key, arrLine.Value);
+
     }
     [XmlInclude(typeof(LineTypeFromA1)), XmlInclude(typeof(LineTypeFromA2))]
     public class ObjectWithDic
@@ -103,13 +106,13 @@ namespace TestSerEx
         [DefaultValue(null), XmlArrayItem(ElementName ="Pair")]
         public DictionaryArrayLine<LineTypeA, LineTypeA>[] D3Arr
         {
-            get => D3?.Select(pair=>new DictionaryArrayLine<LineTypeA, LineTypeA> { Key = pair.Key, Value = pair.Value }).ToArray() ?? null;
+            get => D3?.Select(pair=>(DictionaryArrayLine<LineTypeA, LineTypeA>)pair).ToArray() ?? null;
             set {
                 if (value == null) {
                     D3 = null;
                     return;
                 }
-                D3 = new Dictionary<LineTypeA, LineTypeA>(value.Select(line=>new KeyValuePair<LineTypeA, LineTypeA>(line.Key,line.Value)));
+                D3 = new Dictionary<LineTypeA, LineTypeA>(value.Select(line=>(KeyValuePair<LineTypeA, LineTypeA>)line));
             }
         }
         // unlike D2, this option produces a valid standard JSON

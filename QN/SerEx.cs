@@ -349,7 +349,7 @@ namespace QN
                             firstDicV = false;
                         if(!string.IsNullOrWhiteSpace(notationCfg.DictionaryItemOpen)) sb.Append(notationCfg.DictionaryItemOpen);
                         Dictionary<string, object> keyFaf = null;
-                        if (key!=null && kt!=typeof(string) && kt.IsClass && kt != key.GetType()) {
+                        if (key!=null && kt!=typeof(string) && kt.IsClass && kt != key.GetType() && !notationCfg.AddNewKeywordToClassName) {
                             keyFaf = new Dictionary<string, object> {{"_type", key.GetType().GetFriendlyName()}};
                         }
 
@@ -357,7 +357,7 @@ namespace QN
                         sb.Append(notationCfg.DictionarySep);
                         var v = d[key];
                         Dictionary<string, object> vFaf = null;
-                        if (v!=null && vt!=typeof(string) && vt.IsClass && vt != v.GetType()) {
+                        if (v!=null && vt!=typeof(string) && vt.IsClass && vt != v.GetType() && !notationCfg.AddNewKeywordToClassName) {
                             vFaf = new Dictionary<string, object> {{"_type", v.GetType().GetFriendlyName()}};
                         }
                         sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, vFaf));
@@ -390,7 +390,7 @@ namespace QN
                         var item = array.GetValue(i);
                         if (i > 0) sb.Append(',');
                         Dictionary<string, object> lineFaf = null;
-                        if (item!=null && elT!=typeof(string) && elT.IsClass && elT != item?.GetType()) {
+                        if (item!=null && elT!=typeof(string) && elT.IsClass && elT != item?.GetType() && !notationCfg.AddNewKeywordToClassName) {
                             lineFaf = new Dictionary<string, object> {{"_type", item.GetType().GetFriendlyName()}};
                         }
                         sb.Append(encodeInner(item, inDepth + 1, cyclesTraceList, notationCfg, lineFaf));
@@ -439,7 +439,7 @@ namespace QN
                     if (notationCfg.FieldNameInQuotes) sb.Append(notationCfg.Quote);
                     sb.Append(notationCfg.FieldSep);
                     Dictionary<string, object> fFaf = null;
-                    if (v!=null && fi.FieldType!=typeof(string) && fi.FieldType.IsClass && fi.FieldType != v.GetType()) {
+                    if (v!=null && fi.FieldType!=typeof(string) && fi.FieldType.IsClass && fi.FieldType != v.GetType() && !notationCfg.AddNewKeywordToClassName) {
                         fFaf = new Dictionary<string, object> {{"_type", v.GetType().GetFriendlyName()}};
                     }
                     sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, fFaf));
@@ -461,7 +461,7 @@ namespace QN
                     if (notationCfg.FieldNameInQuotes) sb.Append(notationCfg.Quote);
                     sb.Append(notationCfg.FieldSep);
                     Dictionary<string, object> pFaf = null;
-                    if (v!=null && pi.PropertyType!=typeof(string) && pi.PropertyType.IsClass && pi.PropertyType != v.GetType()) {
+                    if (v!=null && pi.PropertyType!=typeof(string) && pi.PropertyType.IsClass && pi.PropertyType != v.GetType() && !notationCfg.AddNewKeywordToClassName) {
                         pFaf = new Dictionary<string, object> {{"_type", v.GetType().GetFriendlyName()}};
                     }
                     sb.Append(encodeInner(v, inDepth + 1, cyclesTraceList, notationCfg, pFaf));
