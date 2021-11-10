@@ -1,6 +1,3 @@
-//  EqualityEx.cs Latest resharper cleanup: 07/10/2020
-//  Copyright © FAAC. All rights reserved.
-
 using System;
 using System.Collections;
 using System.Diagnostics;
