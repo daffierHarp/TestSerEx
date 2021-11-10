@@ -520,7 +520,7 @@ namespace QN
         // decode with configuration, supports json
         static object decodeInner(Slice encoded, Type t, NotationConfig notationCfg, bool tryQuotes = false, HashSet<XmlIncludeAttribute> xmlIncludes = null)
         {
-            if (encoded == notationCfg.NullStr) return null;
+            if (encoded == null || encoded == notationCfg.NullStr || encoded.IsNullOrWhiteSpace()) return null;
             if (t == null || t == typeof(object) || t == typeof(UnparsedItem)) return new UnparsedItem {Config = notationCfg, RawText = encoded};
             if (t.IsInterface) {
                 doLog("Decoding data as interface not supported!", 10);
@@ -528,7 +528,7 @@ namespace QN
             }
             // support null-able
             if (t.isNullable()) {
-                if (string.IsNullOrWhiteSpace(encoded) || encoded == notationCfg.NullStr) return null;
+                if (encoded.IsNullOrWhiteSpace() || encoded == notationCfg.NullStr) return null;
                 t = t.getNullableUnderlyingType(); Debug.Assert(t != null);
             }
 
@@ -1094,7 +1094,7 @@ namespace QN
 
         public int Length
         {
-            get => LengthOfSubstring < 0 ? OriginalString.Length - StartIndex : Math.Min(LengthOfSubstring, OriginalString.Length - StartIndex);
+            get => LengthOfSubstring < 0 ? OriginalString.Length - StartIndex : Math.Min(LengthOfSubstring, OriginalString?.Length - StartIndex ?? 0);
             set => LengthOfSubstring = value;
         }
 
@@ -1105,7 +1105,7 @@ namespace QN
         public static implicit operator string(Slice ss) => ss.ToString();
 
         public static implicit operator Slice(string originalString) => new Slice
-            {OriginalString = originalString, StartIndex = 0, LengthOfSubstring = originalString.Length};
+            {OriginalString = originalString, StartIndex = 0, LengthOfSubstring = originalString?.Length??0};
 
         public int IndexOf(char c)
         {
@@ -1254,6 +1254,16 @@ namespace QN
 
             index = -1;
             return '\0';
+        }
+
+        public bool IsNullOrWhiteSpace()
+        {
+            if (Length == 0 || OriginalString == null) return true;
+            for (var i = 0; i < Length; i++) {
+                var c = this[i];
+                if (!char.IsWhiteSpace(c) && "\t\r\n".IndexOf(c) < 0) return false;
+            }
+            return true;
         }
     }
     #region NotationConfig

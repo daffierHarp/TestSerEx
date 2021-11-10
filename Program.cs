@@ -320,6 +320,9 @@ namespace TestSerEx
             WriteLine("Object with D3 c# init:\r\n" + tryOWithD3Cs.Tabify(NotationConfig.Json));
             var tryD3Cs = oWithD3.D3.ToNotation(NotationConfig.CSharpObjectInit);
             WriteLine("Object D3 c# init:\r\n" + tryD3Cs.Tabify(NotationConfig.Json));
+            var testEmpty1 = SerEx.FromJson<ObjectWithDic>("");
+            var testEmpty2 = SerEx.FromJson<ObjectWithDic>(null);
+            var testEmpty3 = SerEx.FromJson<ObjectWithDic>("null");
         }
 
         static readonly Random _rnd = new Random();
