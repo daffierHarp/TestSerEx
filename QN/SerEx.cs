@@ -579,7 +579,10 @@ namespace QN
             }
 
             if (t == typeof(DateTime)) {
-                if (DateTime.TryParseExact(encoded.Trim('\"'), notationCfg.DateFormat ?? "g", CultureInfo.InvariantCulture, DateTimeStyles.None,
+                var dtFmtList = new List<string>() { "g" };
+                if (notationCfg.UseDateFormatter && notationCfg.DateFormat != null)
+                    dtFmtList.Insert(0, notationCfg.DateFormat);
+                if (DateTime.TryParseExact(encoded.Trim('\"'), dtFmtList.ToArray(), CultureInfo.InvariantCulture, DateTimeStyles.None,
                     out var dateResult))
                     return dateResult;
                 doLog($"failed to parse date-time {encoded}", 10);
@@ -1333,7 +1336,7 @@ namespace QN
         public bool BooleanAsLowecase;
         public bool BooleanInQuotes;
         public string DateStringFormat;
-        public string DateFormat;
+        public string DateFormat = "yyyy-MM-ddTHH:mm:ss.fff";
         public char DictionarySep = ':';
         public bool EncodeStringAsDoubleQuote = true;
         public bool FieldNameInQuotes;
@@ -1350,7 +1353,7 @@ namespace QN
         public char Quote = '\"';
         public bool SupportEitherQuoteChar;
         public bool SupportLegacyStringArrayWithPipe = true;
-        public bool UseDateFormatter;
+        public bool UseDateFormatter = true;
         public bool AddClassName;
         public bool AddNewKeywordToClassName;
         public string DictionaryItemOpen = "";
