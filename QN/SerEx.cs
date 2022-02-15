@@ -196,6 +196,7 @@ namespace QN
             while (whites.IndexOf(helper.Current)>0 && !helper.HasEnded)
                 helper.SkipOne();
             helper.ForgetSoFar(moveNext:false);
+            if (helper.Current == '\0') return null;
             while (openChars.IndexOf(helper.Current) >= 0 && !helper.HasEnded) {
                 blockStack.Push(helper.Current);
                 helper.SkipOne();
@@ -203,6 +204,32 @@ namespace QN
 
             var stopAtChars =
                 $",;}}\\{notationCfg.OpenArray[0]}{notationCfg.CloseArray}{notationCfg.OpenRecord}{notationCfg.CloseRecord}{notationCfg.Quote}{notationCfg.DictionarySep}{notationCfg.FieldSep}{notationCfg.OpenDictionary[0]}{notationCfg.CloseDictionary}";
+            if (blockStack.Count == 0) {
+                // read string or number
+                var nonBlockedResult = new StringBuilder();
+                do {
+                    nonBlockedResult.Append(helper.Current);
+                    var lastChr = helper.Current;
+                    if (inStr) {
+                        helper.SkipOne();
+                        if (!notationCfg.EncodeStringAsDoubleQuote)
+                            if (lastChr == '\\') {
+                                helper.SkipOne();
+                                continue;
+                            }
+                        if (lastChr == notationCfg.Quote) inStr = false;
+                        continue;
+                    }
+                    if (lastChr == notationCfg.Quote) {
+                        inStr = true;
+                    } else {
+                        
+                        helper.SkipOne();
+                    }
+                } while (inStr || stopAtChars.IndexOf(helper.Current) < 0 && helper.Current!=';' && helper.Current!='\0');
+                helper.ForgetSoFar();
+                return nonBlockedResult.ToString();
+            } 
             var stopAtStrChars = "\\\"'";
             while (blockStack.Count > 0) {
 #if DEBUG
