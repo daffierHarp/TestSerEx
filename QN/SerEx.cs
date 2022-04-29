@@ -178,6 +178,7 @@ namespace QN
         public static T FromText<T>(string txt, NotationConfig notationCfg, bool tryQuotes = false) => (T) decodeInner(txt, typeof(T), notationCfg, tryQuotes);
         public static object FromText(string txt, NotationConfig notationCfg, Type t, bool tryQuotes = false) => decodeInner(txt, t, notationCfg, tryQuotes);
         public static string ToJson<T>(this T o) => o.ToNotation(NotationConfig.Json);
+        public static string ToJsonAltQuote<T>(this T o) => o.ToNotation(NotationConfig.JsonQt2);
         public static string ToQn<T>(this T o) => o.ToNotation(NotationConfig.Qn);
         public static T FromJson<T>(string json) => FromText<T>(json, NotationConfig.Json);
         public static UnparsedItem UnparsedQn(string qn) => FromText<UnparsedItem>(qn, NotationConfig.Qn); 
@@ -513,15 +514,16 @@ namespace QN
 
         static string decodeQnString(ParseHelper helper, NotationConfig notationCfg)
         {
-            Debug.Assert(helper.Current == notationCfg.Quote);
+            Debug.Assert(helper.Current == notationCfg.Quote || notationCfg.SupportEitherQuoteChar && helper.Current == notationCfg.Quote2);
+            var q = helper.Current;
             helper.SkipOne();
             if (notationCfg.EncodeStringAsDoubleQuote) {
                 var sb = new StringBuilder();
                 while (!helper.HasEnded) {
-                    sb.Append(helper.ReadToAndSkip(notationCfg.Quote));
-                    if (helper.Current != notationCfg.Quote)
+                    sb.Append(helper.ReadToAndSkip(q));
+                    if (helper.Current != q)
                         break;
-                    sb.Append(notationCfg.Quote);
+                    sb.Append(q);
                     helper.SkipOne();
                 }
 
@@ -529,17 +531,17 @@ namespace QN
             }
 
             var i0 = helper.CurrentIndex;
-            var strQuoteAndEscape = $"\\{notationCfg.Quote}";
+            var strQuoteAndEscape = $"\\{q}";
             while (!helper.HasEnded) {
                 helper.ReadToAny(strQuoteAndEscape);
-                if (helper.Current == notationCfg.Quote || helper.HasEnded)
+                if (helper.Current == q || helper.HasEnded)
                     break;
                 helper.SkipOne();
                 helper.SkipOne();
             }
 
             string s = helper.AllText.Substring(i0, helper.CurrentIndex - i0);
-            if (helper.Current==notationCfg.Quote)
+            if (helper.Current==q)
                 helper.SkipOne();
             return s.Unescape();
         }
@@ -561,7 +563,7 @@ namespace QN
 
             var helper = new ParseHelper(encoded);
             if (t == typeof(string))
-                return tryQuotes && helper.Current == notationCfg.Quote
+                return tryQuotes && notationCfg.IsQuote(helper.Current)
                     ? decodeQnString(helper, notationCfg)
                     : notationCfg.EncodeStringAsDoubleQuote
                         ? encoded.ToString().Replace($"{notationCfg.Quote}{notationCfg.Quote}", $"{notationCfg.Quote}")
@@ -576,7 +578,7 @@ namespace QN
             if (t == typeof(double)) return double.Parse(encoded, CultureInfo.InvariantCulture);
             if (t == typeof(decimal)) return decimal.Parse(encoded, CultureInfo.InvariantCulture);
             if (t == typeof(bool)) {
-                if (notationCfg.BooleanInQuotes) encoded = encoded.Trim(notationCfg.Quote);
+                if (notationCfg.BooleanInQuotes) encoded = encoded.Trim(notationCfg.Quote, notationCfg.Quote2);
                 var str = encoded.ToString();
                 if (bool.TryParse(str, out var b)) return b;
                 if (str.Equals("true", StringComparison.InvariantCultureIgnoreCase)) return true;
@@ -595,7 +597,7 @@ namespace QN
                 switch (notationCfg.EnumEncoding) {
                     case EnumEncodingOption.NameOnly: return Enum.Parse(t, encoded);
                     case EnumEncodingOption.Number: return Enum.ToObject(t, int.Parse(encoded));
-                    case EnumEncodingOption.QuotedName: return Enum.Parse(t, encoded.Trim(notationCfg.Quote));
+                    case EnumEncodingOption.QuotedName: return Enum.Parse(t, encoded.Trim(notationCfg.Quote, notationCfg.Quote2));
                     case EnumEncodingOption.TypeDotName: return Enum.Parse(t, encoded.Substring(encoded.IndexOf('.')+1));
                 }
                 
@@ -723,7 +725,7 @@ namespace QN
                     if (helper.Current == notationCfg.OpenRecord || helper.PeekPhrase(notationCfg.OpenDictionary) || helper.PeekPhrase(notationCfg.OpenArray)) {
                         var complex = readQnBlock(helper, notationCfg);
                         fieldValue = decodeInner(complex, ft, notationCfg, xmlIncludes: xmlIncludes);
-                    } else if (helper.Current == notationCfg.Quote) {
+                    } else if (notationCfg.IsQuote(helper.Current)) {
                         fieldValue = decodeQnString(helper, notationCfg);
                         if (ft != typeof(string))
                             fieldValue = decodeInner((string)fieldValue, ft, notationCfg, xmlIncludes: xmlIncludes);
@@ -755,12 +757,12 @@ namespace QN
                 Debug.Assert(list != null);
                 while (helper.Current != notationCfg.CloseArray) {
                     helper.SkipWhiteSpaces();
-                    if (helper.Current == notationCfg.Quote) {
+                    if (notationCfg.IsQuote(helper.Current)) {
                         // inStr
                         var strStartIdx = helper.CurrentIndex;
                         var str = decodeQnString(helper, notationCfg);
                         var strEndIdx = helper.CurrentIndex;
-                        if (notationCfg.NullStr.Length>0 && notationCfg.NullStr[0]==notationCfg.Quote && (str == notationCfg.NullStr || str == notationCfg.NullStr.Trim(notationCfg.Quote))) {
+                        if (notationCfg.NullStr.Length>0 && notationCfg.NullStr[0]==notationCfg.Quote && (str == notationCfg.NullStr || str == notationCfg.NullStr.Trim(notationCfg.Quote, notationCfg.Quote2))) {
                             list.Add(null);
                         } else if (elT == typeof(object) || elT == typeof(UnparsedItem))
                             list.Add(new UnparsedItem {RawText = helper.AllText.Substring(strStartIdx, strEndIdx - strStartIdx), Config = notationCfg});
@@ -817,6 +819,7 @@ namespace QN
             var startIndex = helper.CurrentIndex;
             var blockStack = new Stack<char>();
             var inStr = false;
+            char q = notationCfg.Quote;
             blockStack.Push(',');
             var openChars = $"{notationCfg.OpenArray}{notationCfg.OpenRecord}{notationCfg.OpenDictionary}";
             while (openChars.IndexOf(helper.Current) >= 0) {
@@ -825,7 +828,7 @@ namespace QN
             }
 
             var stopAtChars =
-                $",;}}\\{notationCfg.OpenArray[0]}{notationCfg.CloseArray}{notationCfg.OpenRecord}{notationCfg.CloseRecord}{notationCfg.Quote}{notationCfg.DictionarySep}{notationCfg.FieldSep}{notationCfg.OpenDictionary[0]}{notationCfg.CloseDictionary}";
+                $",;}}\\{notationCfg.OpenArray[0]}{notationCfg.CloseArray}{notationCfg.OpenRecord}{notationCfg.CloseRecord}{notationCfg.Quote}{notationCfg.Quote2}{notationCfg.DictionarySep}{notationCfg.FieldSep}{notationCfg.OpenDictionary[0]}{notationCfg.CloseDictionary}";
             var stopAtStrChars = "\\\"'";
             while (blockStack.Count > 0) {
 #if DEBUG
@@ -846,13 +849,14 @@ namespace QN
                         }
                     }
 
-                    if (lastChr == notationCfg.Quote)
+                    if (lastChr==q)
                         inStr = false;
                     continue;
                 }
 
-                if (lastChr == notationCfg.Quote) {
+                if (notationCfg.IsQuote(lastChr)) {
                     inStr = true;
+                    q = lastChr;
                 } else if (openChars.IndexOf(lastChr) >= 0) {
                     blockStack.Push(lastChr);
                 } else if (blockStack.Peek() == notationCfg.OpenArray[0]) {
@@ -1316,6 +1320,27 @@ namespace QN
             OpenDictionary = "{",
             CloseDictionary = '}',
             FieldNameInQuotes = true,
+            Quote2 = '\'',
+            SupportEitherQuoteChar = true,
+            UseDateFormatter = true,
+            DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ",
+            DateInUtc = true,
+            NullStr = "null",
+            EncodeStringAsDoubleQuote = false,
+            BooleanAsLowecase = true,
+            BooleanInQuotes = false,
+            SupportLegacyStringArrayWithPipe = false,
+            EnumEncoding = EnumEncodingOption.QuotedName
+        };
+        public static readonly NotationConfig JsonQt2 = new NotationConfig {
+            Name = "Json",
+            OpenRecord = '{',
+            CloseRecord = '}',
+            OpenDictionary = "{",
+            CloseDictionary = '}',
+            FieldNameInQuotes = true,
+            Quote = '\'',
+            Quote2 = '\"',
             SupportEitherQuoteChar = true,
             UseDateFormatter = true,
             DateFormat = "yyyy-MM-ddTHH:mm:ss.fffZ",
@@ -1378,7 +1403,9 @@ namespace QN
         public char OpenRecord = '(';
         public char CloseRecord = ')';
         public char Quote = '\"';
+        public char Quote2 = '\"';
         public bool SupportEitherQuoteChar;
+        public bool IsQuote(char q) => q == Quote || SupportEitherQuoteChar && q == Quote2;
         public bool SupportLegacyStringArrayWithPipe = true;
         public bool UseDateFormatter = true;
         public bool AddClassName;

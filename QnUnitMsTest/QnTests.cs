@@ -113,6 +113,17 @@ namespace QnUnitMsTest
             Assert.IsNotNull(cloneOverJson);
             runEqTest(_data1, cloneOverJson, typeof(Data));
         }
+        [TestMethod]
+        public void TestJsonQt2()
+        {
+            var json = _data1.ToJsonAltQuote();
+            Assert.IsInstanceOfType(json, typeof(string));
+            Assert.IsNotNull(json);
+            Debug.WriteLine(json);
+            var cloneOverJson = SerEx.FromJson<Data>(json);
+            Assert.IsNotNull(cloneOverJson);
+            runEqTest(_data1, cloneOverJson, typeof(Data));
+        }
 
         [TestMethod]
         public void TestQnDictionary()
