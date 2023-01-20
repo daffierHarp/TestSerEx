@@ -315,6 +315,7 @@ namespace QN
             NotationConfig notationCfg = null, Dictionary<string, object> forceAddFields = null)
         {
             if (notationCfg == null) notationCfg = NotationConfig.Qn;
+            if (data is UnparsedItem ui) return ui.RawText;
             if (inDepth >= notationCfg.MaxDepth) {
                 doLog($"complex data is deeper than {notationCfg.MaxDepth} connections!", 10);
                 return "";
