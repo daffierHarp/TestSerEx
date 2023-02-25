@@ -2,7 +2,7 @@
 
 Serialization helpers through extension methods and introducing QN.
 
-QN stands for Quick-server data objects Notation.
+QN stands for Quick-server data objects Notation. It is not a single quote JSON, and was given its name unaware that elsewhere in the world, QN was used to label JSON with single quote.
 
 This form of serialization and de-serialization is used by FAAC/MILO in certain communication
 protocols and provides notation that is similar to JSON, yet entirely built in C#. The Serialization-Extension class called SerEx implements
