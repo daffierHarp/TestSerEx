@@ -455,8 +455,9 @@ namespace QN
                         sb.Append(encodeInner(fv, inDepth + 1, cyclesTraceList, notationCfg));
                     }
                 foreach (var fi in fields) {
-                    var v = fi.GetValue(data);
                     if (fi.hasAttr<NonSerializedAttribute>() || fi.hasAttr<XmlIgnoreAttribute>()) continue;
+                    object v = null;
+                    try { v = fi.GetValue(data); } catch { continue; }
                     if (fi.hasAttr<DefaultValueAttribute>()) {
                         if (v == fi.getAttr<DefaultValueAttribute>().Value) continue;
                     } else if (testDefault(v)) continue;
@@ -475,8 +476,10 @@ namespace QN
                 foreach (var pi in props) {
                     if (pi.IsSpecialName || !pi.CanRead || !pi.CanWrite || pi.GetIndexParameters().Length > 0)
                         continue;
-                    var v = pi.GetValue(data, null);
                     if (pi.hasAttr<NonSerializedAttribute>() || pi.hasAttr<XmlIgnoreAttribute>()) continue;
+                    // TODO: add exclude name-spaces global hash set
+                    object v = null;
+                    try { v = pi.GetValue(data, null); } catch { continue; }
                     if (pi.hasAttr<DefaultValueAttribute>()) {
                         if (v == pi.getAttr<DefaultValueAttribute>().Value) continue;
                     } else if (testDefault(v)) continue;
