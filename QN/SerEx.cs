@@ -717,7 +717,14 @@ namespace QN
                     var fi = t.GetField(fieldName);
                     var pi = t.GetProperty(fieldName);
                     var ft = fi == null ? pi == null ? null : pi.PropertyType : fi.FieldType;
-
+                    if (ft == null) {
+                        var ignoreBlock = readQnBlock(helper, notationCfg);
+                        doLog($"Field {fieldName} exists in source JSON but missing from target C# Type, block ignored: {ignoreBlock}", 20);
+                        helper.SkipWhiteSpaces();
+                        if (helper.Current == ',') helper.SkipOne();
+                        helper.SkipWhiteSpaces();
+                        continue;
+                    }
                     // ReSharper disable once RedundantAssignment
                     object fieldValue = null;
                     if (notationCfg.AddNewKeywordToClassName && helper.PeekPhrase("new ")) helper.SkipPhrase("new ");
