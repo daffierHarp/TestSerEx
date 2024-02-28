@@ -656,7 +656,7 @@ namespace QN
                     // TODO: support new() and dictionary type formats
                     if (notationCfg.AddNewKeywordToClassName && helper.PeekPhrase("new ")) helper.SkipPhrase("new ");
                     if (notationCfg.AddClassName && char.IsLetter(helper.Current)) helper.SkipToAny($" {notationCfg.OpenRecord}{notationCfg.OpenArray}{notationCfg.OpenDictionary}");
-                    if (helper.Current == notationCfg.OpenRecord || helper.PeekPhrase(notationCfg.OpenDictionary) || helper.PeekPhrase(notationCfg.OpenArray))
+                    if (helper.Current == notationCfg.OpenRecord || helper.Current == notationCfg.Quote || helper.Current == notationCfg.Quote2 || helper.PeekPhrase(notationCfg.OpenDictionary) || helper.PeekPhrase(notationCfg.OpenArray))
                         keyPart = readQnBlock(helper, notationCfg, true);
                     else
                         keyPart = helper.ReadToAny($"{notationCfg.DictionarySep}").Trim(' ', '\t', '\r', '\n');
@@ -667,7 +667,7 @@ namespace QN
                     string vPart;
                     if (notationCfg.AddNewKeywordToClassName && helper.PeekPhrase("new ")) helper.SkipPhrase("new ");
                     if (notationCfg.AddClassName && char.IsLetter(helper.Current)) helper.SkipToAny($" {notationCfg.OpenRecord}{notationCfg.OpenArray}{notationCfg.OpenDictionary}");
-                    if (helper.Current == notationCfg.OpenRecord || helper.PeekPhrase(notationCfg.OpenDictionary) || helper.PeekPhrase(notationCfg.OpenArray))
+                    if (helper.Current == notationCfg.OpenRecord || helper.Current == notationCfg.Quote || helper.Current == notationCfg.Quote2 || helper.PeekPhrase(notationCfg.OpenDictionary) || helper.PeekPhrase(notationCfg.OpenArray))
                         vPart = readQnBlock(helper, notationCfg);
                     else
                         vPart = helper.ReadToAny($"{closeDic},");
